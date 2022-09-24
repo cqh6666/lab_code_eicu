@@ -18,8 +18,8 @@ import pickle
 
 import xgboost as xgb
 
-MODEL_SAVE_PATH = './result/{}'
-global_xgb_boost = 250
+MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/{}'
+global_xgb_boost = 1000
 
 
 def get_xgb_model_pkl(hos_id):
@@ -28,9 +28,8 @@ def get_xgb_model_pkl(hos_id):
     return xgb_model
 
 
-
 def get_init_similar_weight(hos_id):
-    init_similar_weight_file = os.path.join(MODEL_SAVE_PATH, f'{hos_id}/S03_0_psm_global_xgb_{global_xgb_boost}.csv')
+    init_similar_weight_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f'S03_0_psm_global_xgb_{global_xgb_boost}_v1.csv')
     init_similar_weight = pd.read_csv(init_similar_weight_file).squeeze().tolist()
     return init_similar_weight
 

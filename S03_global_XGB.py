@@ -5,6 +5,7 @@ the parameters refer to BR
 
 """
 import random
+import sys
 
 import pandas as pd
 import xgboost as xgb
@@ -13,7 +14,7 @@ import pickle
 import os
 import numpy as np
 
-from api_utils import get_all_data_X_y
+from api_utils import get_all_data_X_y, get_hos_data_X_y
 import time
 
 
@@ -55,7 +56,6 @@ def xgb_train_global(train_data_x_, train_data_y_, num_boost, xgb_model_, save=T
 
     test_y_predict = model.predict(d_test)
     auc = roc_auc_score(test_data_y, test_y_predict)
-    recall = recall_score(test_data_y, test_y_predict)
 
     print(f'train time: {run_time} | num_boost_round: {num_boost} : The auc of this model is {auc}')
 
@@ -65,7 +65,7 @@ def xgb_train_global(train_data_x_, train_data_y_, num_boost, xgb_model_, save=T
         print(f"save xgb model to pkl ")
         save_weight_importance(model, num_boost)
 
-    return auc, recall, run_time
+    return auc, run_time
 
 
 def xgb_train_sub_global(num_boost, is_transfer=1, select_rate=0.1):
@@ -93,7 +93,7 @@ def save_weight_importance(model, num_boost):
     result = result / result.sum()
     result.fillna(0, inplace=True)
     result.to_csv(init_psm_weight_file.format(num_boost), index=False)
-    print(f"save feature important weight to csv success!")
+    print(f"save feature important weight to csv success!", init_psm_weight_file.format(num_boost))
 
 
 def get_important_weight(file_name):
@@ -119,12 +119,15 @@ def get_sub_train_data(select_rate):
 if __name__ == '__main__':
     # 自定义日志
     global_boost_nums = 500
-    hos_id = 0
+    hos_id = int(sys.argv[1])
     MODEL_SAVE_PATH = f'./result/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
-    train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+    if hos_id == 0:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+    else:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
     # select_srate = int(sys.argv[2])
     # ============================= save file ==================================== #
@@ -135,30 +138,31 @@ if __name__ == '__main__':
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
-    for max_idx in range(100, 501, 100):
+    for max_idx in range(600, 1001, 100):
         global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'cost_time'] = \
             xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=max_idx, save=True)
 
     global_auc.to_csv(save_result_file)
     print("done!")
 
-    xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
-
-    frac_list = np.arange(0.05, 1.01, 0.05)
-    # frac_list = [0.05, 0.1, 0.2, 0.3]
-    transfers = [0, 1]
-    num_boosts = [50, 100, 200, 300]
-    sub_global_auc = pd.DataFrame()
-    index = 0
-    for i in frac_list:
-        for j in transfers:
-            for k in num_boosts:
-                temp_auc, cost_time = xgb_train_sub_global(num_boost=k, is_transfer=j, select_rate=i)
-                sub_global_auc.loc[index, 'select_rate'] = i
-                sub_global_auc.loc[index, 'is_transfer'] = j
-                sub_global_auc.loc[index, 'local_iter'] = k
-                sub_global_auc.loc[index, 'auc_score'] = temp_auc
-                sub_global_auc.loc[index, 'cost_time'] = cost_time
-                index += 1
-
-    sub_global_auc.to_csv(save_result_file2)
+    # xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
+    #
+    # frac_list = np.arange(0.05, 1.01, 0.05)
+    # # frac_list = [0.05, 0.1, 0.2, 0.3]
+    # transfers = [0, 1]
+    # num_boosts = [50, 100, 200, 300]
+    # sub_global_auc = pd.DataFrame()
+    # index = 0
+    # for i in frac_list:
+    #     for j in transfers:
+    #         for k in num_boosts:
+    #             temp_auc, cost_time = xgb_train_sub_global(num_boost=k, is_transfer=j, select_rate=i)
+    #             sub_global_auc.loc[index, 'select_rate'] = i
+    #             sub_global_auc.loc[index, 'is_transfer'] = j
+    #             sub_global_auc.loc[index, 'local_iter'] = k
+    #             sub_global_auc.loc[index, 'auc_score'] = temp_auc
+    #             sub_global_auc.loc[index, 'cost_time'] = cost_time
+    #             index += 1
+    #
+    # sub_global_auc.to_csv(save_result_file2)
+    print("done!")

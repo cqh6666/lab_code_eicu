@@ -14,6 +14,7 @@ __author__ = 'cqh'
 
 import pickle
 import random
+import sys
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -33,7 +34,7 @@ def save_weight_importance_to_csv(train_iter, weight_important):
     weight_importance_df = pd.DataFrame({"feature_weight": weight_important})
     tra_file = transfer_weight_file.format(train_iter)
     weight_importance_df.to_csv(tra_file, index=False)
-    print(f"save to csv success! - {transfer_weight_file}")
+    print(f"save to csv success! - {tra_file}")
 
     # 标准化 用作psm_0
     weight_importance = [abs(i) for i in weight_important]
@@ -127,30 +128,30 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
 if __name__ == '__main__':
 
     global_max_iter = 1000
-    hos_id = 0
+    hos_id = int(sys.argv[1])
     MODEL_SAVE_PATH = f'./result/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     # train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
-    train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
-
-    # auc, time = global_train(1000)
+    if hos_id == 0:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+    else:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
     # max_iter = 100
     # select_srate = int(sys.argv[2])
     # ============================= save file ==================================== #
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}.pkl")
-    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}.csv")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v2.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr.csv")
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v1.pkl")
+    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v1.csv")
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v1.csv")
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v1.csv")
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v1.csv")
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
     for max_idx in range(200, 1001, 200):
         global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
-        print("\n")
 
     global_auc.to_csv(save_result_file)
     print("global done!")
@@ -174,3 +175,4 @@ if __name__ == '__main__':
                 index += 1
 
     sub_global_auc.to_csv(save_result_file2)
+    print("done!")

@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 -------------------------------------------------
-   File Name:     sqlSelect
+   File Name:     email_test
    Description:   ...
    Author:        cqh
-   date:          2022/9/6 14:07
+   date:          2022/9/23 16:53
 -------------------------------------------------
    Change Activity:
-                  2022/9/6:
+                  2022/9/23:
 -------------------------------------------------
 """
 __author__ = 'cqh'
 
-import math
+import time
 
-import psycopg2
-import pandas as pd
-from psycopg2 import extras as ex
-import numpy as np
-import joblib
-from queue import Queue
+from email_api import send_success_mail
+
+st = time.time()
+time.sleep(1)
+send_success_mail("test程序", st, time.time())

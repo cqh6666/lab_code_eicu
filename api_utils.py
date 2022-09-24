@@ -16,10 +16,10 @@ import os
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-TRAIN_PATH = "../data/train_file"
+TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file"
 all_data_file_name = "all_data_df_v1.feather"
 all_data_norm_file_name = "all_data_df_norm_v1.feather"
-hos_data_norm_file_name = "all_data_Df_norm_{}_v1.feather"
+hos_data_norm_file_name = "all_data_df_norm_{}_v1.feather"
 y_label = "aki_label"
 hospital_id = "hospitalid"
 patient_id = "index"
@@ -66,7 +66,8 @@ def get_all_data_X_y():
     all_data_x = all_data.drop([y_label, hospital_id, patient_id], axis=1)
     all_data_y = all_data[y_label]
 
-    train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3, random_state=random_state)
+    train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
+                                                                            random_state=random_state)
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
