@@ -17,9 +17,10 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file"
-all_data_file_name = "all_data_df_v1.feather"
-all_data_norm_file_name = "all_data_df_norm_v1.feather"
-hos_data_norm_file_name = "all_data_df_norm_{}_v1.feather"
+all_data_file_name = "all_data_df_v2.feather"
+# all_data_norm_file_name = "all_data_df_norm_v2.feather"
+all_data_norm_file_name = "all_data_df_norm_process_v2.feather"
+hos_data_norm_file_name = "all_data_df_norm_process_{}_v2.feather"
 y_label = "aki_label"
 hospital_id = "hospitalid"
 patient_id = "index"
@@ -34,7 +35,7 @@ def get_continue_feature():
     return pd.read_csv(os.path.join(TRAIN_PATH, "continue_feature.csv")).iloc[:, 0].tolist()
 
 
-def get_top5_hosiptal():
+def get_top5_hospital():
     """
     获取前5个多的医院id
     :return:

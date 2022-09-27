@@ -26,6 +26,8 @@ import os
 import pandas as pd
 import warnings
 
+from email_api import send_success_mail
+
 warnings.filterwarnings('ignore')
 
 
@@ -126,22 +128,20 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
 
 
 if __name__ == '__main__':
-
+    run_start_time = time.time()
     global_max_iter = 1000
     hos_id = int(sys.argv[1])
-    MODEL_SAVE_PATH = f'./result/{hos_id}'
+    MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
-    # train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
     if hos_id == 0:
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
-    # max_iter = 100
-    # select_srate = int(sys.argv[2])
     # ============================= save file ==================================== #
+    program_name = f"S03_global_LR"
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v1.pkl")
     transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v1.csv")
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v1.csv")
@@ -175,4 +175,6 @@ if __name__ == '__main__':
                 index += 1
 
     sub_global_auc.to_csv(save_result_file2)
+
+    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
     print("done!")

@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 10
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -122,9 +122,10 @@ if __name__ == '__main__':
     else:
         xgb_model = None
     """
-    version=1 
+    version=1
+    version = 4 中位数填充
     """
-    version = 1
+    version = 4
     # ================== save file name ====================
     program_name = f"S04_XGB_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False
@@ -133,7 +134,7 @@ if __name__ == '__main__':
         os.makedirs(save_path)
         my_logger.warning("create new dirs... {}".format(save_path))
     test_result_file_name = os.path.join(
-        save_path, f"S04_lr_test_tra{is_transfer}_boost{xgb_boost_num}_select{select}_v{version}.csv")
+        save_path, f"S04_XGB_test_tra{is_transfer}_boost{xgb_boost_num}_select{select}_v{version}.csv")
     # =====================================================
 
     # 获取数据

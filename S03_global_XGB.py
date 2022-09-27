@@ -17,6 +17,8 @@ import numpy as np
 from api_utils import get_all_data_X_y, get_hos_data_X_y
 import time
 
+from email_api import send_success_mail
+
 
 def get_xgb_params(num_boost):
     params = {
@@ -117,10 +119,11 @@ def get_sub_train_data(select_rate):
 
 
 if __name__ == '__main__':
+    run_start_time = time.time()
     # 自定义日志
-    global_boost_nums = 500
+    global_boost_nums = 1000
     hos_id = int(sys.argv[1])
-    MODEL_SAVE_PATH = f'./result/{hos_id}'
+    MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
@@ -131,10 +134,11 @@ if __name__ == '__main__':
 
     # select_srate = int(sys.argv[2])
     # ============================= save file ==================================== #
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v1.pkl")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v1.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v1.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_xgb_v1.csv")
+    program_name = f"S03_global_XGB"
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v2.pkl")
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v2.csv")
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v2.csv")
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_xgb_v2.csv")
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
@@ -145,24 +149,25 @@ if __name__ == '__main__':
     global_auc.to_csv(save_result_file)
     print("done!")
 
-    # xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
-    #
-    # frac_list = np.arange(0.05, 1.01, 0.05)
-    # # frac_list = [0.05, 0.1, 0.2, 0.3]
-    # transfers = [0, 1]
-    # num_boosts = [50, 100, 200, 300]
-    # sub_global_auc = pd.DataFrame()
-    # index = 0
-    # for i in frac_list:
-    #     for j in transfers:
-    #         for k in num_boosts:
-    #             temp_auc, cost_time = xgb_train_sub_global(num_boost=k, is_transfer=j, select_rate=i)
-    #             sub_global_auc.loc[index, 'select_rate'] = i
-    #             sub_global_auc.loc[index, 'is_transfer'] = j
-    #             sub_global_auc.loc[index, 'local_iter'] = k
-    #             sub_global_auc.loc[index, 'auc_score'] = temp_auc
-    #             sub_global_auc.loc[index, 'cost_time'] = cost_time
-    #             index += 1
-    #
-    # sub_global_auc.to_csv(save_result_file2)
+    xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
+
+    frac_list = np.arange(0.05, 1.01, 0.05)
+    # frac_list = [0.05, 0.1, 0.2, 0.3]
+    transfers = [0, 1]
+    num_boosts = [50, 100, 200, 300]
+    sub_global_auc = pd.DataFrame()
+    index = 0
+    for i in frac_list:
+        for j in transfers:
+            for k in num_boosts:
+                temp_auc, cost_time = xgb_train_sub_global(num_boost=k, is_transfer=j, select_rate=i)
+                sub_global_auc.loc[index, 'select_rate'] = i
+                sub_global_auc.loc[index, 'is_transfer'] = j
+                sub_global_auc.loc[index, 'local_iter'] = k
+                sub_global_auc.loc[index, 'auc_score'] = temp_auc
+                sub_global_auc.loc[index, 'cost_time'] = cost_time
+                index += 1
+
+    sub_global_auc.to_csv(save_result_file2)
+    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
     print("done!")

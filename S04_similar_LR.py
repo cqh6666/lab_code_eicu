@@ -100,7 +100,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 10
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -119,8 +119,10 @@ if __name__ == '__main__':
     """
     version=1  local_lr_iter = 100
     version=2  有错误重新调整
+    version=3  压缩数据
+    version = 4 中位数填充
     """
-    version = 2
+    version = 4
     # ================== save file name ====================
     program_name = f"S04_LR_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False
