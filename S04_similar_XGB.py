@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 10
+    pool_nums = 2
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -124,8 +124,9 @@ if __name__ == '__main__':
     """
     version=1
     version = 4 中位数填充
+    version = 5 类权重
     """
-    version = 4
+    version = 5
     # ================== save file name ====================
     program_name = f"S04_XGB_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False

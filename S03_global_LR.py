@@ -142,25 +142,26 @@ if __name__ == '__main__':
 
     # ============================= save file ==================================== #
     program_name = f"S03_global_LR"
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v1.pkl")
-    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v1.csv")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v1.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v1.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v1.csv")
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v2.pkl")
+    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v2.csv")
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v2.csv")
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v2.csv")
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v2.csv")
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
-    for max_idx in range(200, 1001, 200):
-        global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
+    # for max_idx in range(200, 1001, 200):
+    #     global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
+    global_auc.loc[global_max_iter, 'auc_score'], global_auc.loc[global_max_iter, 'recall_score'], global_auc.loc[global_max_iter, 'cost_time'] = global_train(global_max_iter)
 
     global_auc.to_csv(save_result_file)
     print("global done!")
 
     global_feature_weight = pd.read_csv(transfer_weight_file.format(global_max_iter)).squeeze().tolist()
-    frac_list = np.arange(0.05, 1.01, 0.05)
-    # frac_list = [0.05, 0.1, 0.2]
-    transfers = [0, 1]
-    local_iter = [50, 100, 200]
+    # frac_list = np.arange(0.05, 1.01, 0.05)
+    frac_list = [0.1]
+    transfers = [0]
+    local_iter = [100]
     sub_global_auc = pd.DataFrame()
     index = 0
     for i in frac_list:

@@ -1,4 +1,5 @@
 #!/bin/sh
+sleep 10h
 start=0
 end=5000
 all_hos=(73 167 264 338 420)

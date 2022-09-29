@@ -44,7 +44,7 @@ def get_top5_hospital():
 
 
 def get_all_data():
-    data_file = os.path.join(DATA_FILE_PATH, all_data_file_name)
+    data_file = os.path.join(TRAIN_PATH, all_data_file_name)
     all_data = pd.read_feather(data_file)
     print("load all_data", all_data.shape)
     return all_data
@@ -95,7 +95,7 @@ def get_top5_data():
     """
     hos_data_list = {}
 
-    hos_ids = get_top5_hosiptal()
+    hos_ids = get_top5_hospital()
 
     for hos in hos_ids:
         data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos))
@@ -149,4 +149,4 @@ def save_to_csv_by_row(csv_file, new_df):
     return True
 
 if __name__ == '__main__':
-    print(",.")
+    norm_data = get_all_data()

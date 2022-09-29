@@ -57,7 +57,7 @@ def get_local_xgb_para(xgb_thread_num=1, num_boost_round=50):
         'verbosity': 0,
         'eval_metric': 'logloss',
         'seed': 2022,
-        'tree_method': 'hist'
+        'tree_method': 'hist',
     }
     return params, num_boost_round
 
