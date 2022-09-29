@@ -118,15 +118,17 @@ if __name__ == '__main__':
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
     if is_transfer == 1:
-        xgb_model = get_xgb_model_pkl(hos_id)
+        xgb_model = get_xgb_model_pkl(0)
     else:
         xgb_model = None
     """
     version=1
     version = 4 中位数填充
     version = 5 类权重
+    version = 6 匹配全局（错误版本，没用全局模型）
+    version = 7 平均数填充，用全局模型
     """
-    version = 5
+    version = 7
     # ================== save file name ====================
     program_name = f"S04_XGB_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False
@@ -143,6 +145,9 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+
+    # 改为匹配全局，修改为全部数据
+    train_data_x, _, train_data_y, _ = get_all_data_X_y()
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值

@@ -53,7 +53,7 @@ def global_train(train_iter):
     train_x_ft = train_data_x
     test_x_ft = test_data_x
 
-    lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1, class_weight='balanced')
+    lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1)
     lr_all.fit(train_x_ft, train_data_y)
     y_predict = lr_all.decision_function(test_x_ft)
     auc = roc_auc_score(test_data_y, y_predict)
@@ -115,7 +115,7 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
         fit_train_x = train_x_ft
         fit_test_x = test_data_x
 
-    lr_local = LogisticRegression(max_iter=local_iter_idx, solver="liblinear", class_weight='balanced')
+    lr_local = LogisticRegression(max_iter=local_iter_idx, solver="liblinear")
     lr_local.fit(fit_train_x, train_y_ft)
     y_predict = lr_local.decision_function(fit_test_x)
     auc = roc_auc_score(test_data_y, y_predict)

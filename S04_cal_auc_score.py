@@ -18,7 +18,7 @@ from sklearn.metrics import roc_auc_score
 import pandas as pd
 
 step = 4
-version = 4
+version = 7
 model = 'lr'
 # model = 'XGB'
 
