@@ -13,6 +13,7 @@
 __author__ = 'cqh'
 
 import os
+import time
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -108,12 +109,12 @@ def get_top5_data():
 
 def covert_time_format(seconds):
     """将秒数转成比较好显示的格式
-    >>> covert_time_format(3600) == '1.0 h'
-    True
-    >>> covert_time_format(360) == '6.0 m'
-    True
-    >>> covert_time_format(6) == '36 s'
-    True
+    # >>> covert_time_format(3600) == '1.0 h'
+    # True
+    # >>> covert_time_format(360) == '6.0 m'
+    # True
+    # >>> covert_time_format(6) == '36 s'
+    # True
     """
     assert isinstance(seconds, (int, float))
     hour = seconds // 3600
@@ -143,10 +144,13 @@ def save_to_csv_by_row(csv_file, new_df):
 
     if os.path.exists(csv_file):
         new_df.to_csv(csv_file, mode='a', index=True, header=False)
+        print("append to csv file success!")
     else:
         new_df.to_csv(csv_file, index=True, header=True)
+        print("create to csv file success!")
 
     return True
 
+
 if __name__ == '__main__':
-    norm_data = get_all_data()
+    all_data = get_all_data()
