@@ -14,111 +14,91 @@ __author__ = 'cqh'
 
 import os
 import sys
-import threading
 import time
 import warnings
+from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
-import xgboost as xgb
 
 import pandas as pd
-from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from my_logger import MyLog
 from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y
 from email_api import send_success_mail, get_run_time
-from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_init_similar_weight
+from lr_utils_api import get_init_similar_weight, get_transfer_weight
+from my_logger import MyLog
 
 warnings.filterwarnings('ignore')
 
 
-def get_similar_rank(target_pre_data_select):
+def get_similar_rank(_pre_data_select):
     """
     选择前10%的样本，并且根据相似得到样本权重
-    :param target_pre_data_select:
+    :param _pre_data_select: 目标样本
     :return:
     """
     try:
-        similar_rank = pd.DataFrame(index=pca_train_data_x.index)
-        similar_rank['distance'] = abs(pca_train_data_x - target_pre_data_select.values).sum(axis=1)
+        # 得先进行均值化
+        similar_rank = pd.DataFrame(index=train_data_x.index)
+        similar_rank['distance'] = abs((train_data_x - _pre_data_select.values) * init_similar_weight).sum(axis=1)
+        similar_rank.sort_values('distance', inplace=True)
+        patient_ids = similar_rank.index[:top_k_mean].values
+
+        mean_pre_data_select = pd.DataFrame(data=[train_data_x.loc[patient_ids].mean(axis=0)]).values
+        # 均值化后再计算相似性患者
+        similar_rank = pd.DataFrame(index=train_data_x.index)
+        similar_rank['distance'] = abs((train_data_x - mean_pre_data_select) * init_similar_weight).sum(axis=1)
         similar_rank.sort_values('distance', inplace=True)
         patient_ids = similar_rank.index[:len_split].values
 
+        # distance column
         sample_ki = similar_rank.iloc[:len_split, 0].values
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
+
     except Exception as err:
-        print(err)
-        sys.exit(1)
+        raise err
 
     return patient_ids, sample_ki
 
 
-def xgb_train(fit_train_x, fit_train_y, pre_data_select_, sample_ki):
-    """
-    xgb训练模型，用原始数据建模
-    :param fit_train_x:
-    :param fit_train_y:
-    :param pre_data_select_:
-    :param sample_ki:
-    :return:
-    """
-    d_train_local = xgb.DMatrix(fit_train_x, label=fit_train_y, weight=sample_ki)
-    xgb_local = xgb.train(params=params,
-                          dtrain=d_train_local,
-                          num_boost_round=num_boost_round,
-                          verbose_eval=False,
-                          xgb_model=xgb_model)
-    d_test_local = xgb.DMatrix(pre_data_select_)
-    predict_prob = xgb_local.predict(d_test_local)[0]
+def lr_train(fit_train_x, fit_train_y, _pre_data_select, sample_ki):
+    lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter)
+    lr_local.fit(fit_train_x, fit_train_y, sample_ki)
+    predict_prob = lr_local.predict_proba(_pre_data_select)[0][1]
     return predict_prob
 
 
-def personalized_modeling(test_id_, pre_data_select_, pca_pre_data_select_):
+def personalized_modeling(patient_id, _pre_data_select_x):
     """
     根据距离得到 某个目标测试样本对每个训练样本的距离
     test_id - patient id
-    pre_data_select - 目标原始样本
-    pca_pre_data_select: pca降维后的目标样本
+    pre_data_select - dataframe
     :return: 最终的相似样本
     """
-    patient_ids, sample_ki = get_similar_rank(pca_pre_data_select_)
+    patient_ids, sample_ki = get_similar_rank(_pre_data_select_x)
+
     try:
-        fit_train_x = train_data_x.loc[patient_ids]
         fit_train_y = train_data_y.loc[patient_ids]
-        predict_prob = xgb_train(fit_train_x, fit_train_y, pre_data_select_, sample_ki)
+        fit_test_x, fit_train_x = fit_train_test_data(patient_ids, _pre_data_select_x)
+        predict_prob = lr_train(fit_train_x, fit_train_y, fit_test_x, sample_ki)
         global_lock.acquire()
-        test_result.loc[test_id_, 'prob'] = predict_prob
+        test_result.loc[patient_id, 'prob'] = predict_prob
         global_lock.release()
     except Exception as err:
         print(err)
         sys.exit(1)
 
 
-def pca_reduction(train_x, test_x, similar_weight, n_comp):
-    """
-    传入训练集和测试集，PCA降维前先得先乘以相似性度量
-    :param train_x:
-    :param test_x:
-    :param similar_weight:
-    :param n_comp:
-    :return:
-    """
-    if n_comp >= train_x.shape[1]:
-        n_comp = train_x.shape[1] - 1
-
-    my_logger.warning(f"starting pca by train_data...")
-    # pca降维
-    pca_model = PCA(n_components=n_comp, random_state=2022)
-    # 转换需要 * 相似性度量
-    new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
-    new_test_data_x = pca_model.transform(test_x * similar_weight)
-    # 转成df格式
-    pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
-    pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
-
-    my_logger.info(f"n_components: {pca_model.n_components}, svd_solver:{pca_model.svd_solver}.")
-
-    return pca_train_x, pca_test_x
+def fit_train_test_data(patient_ids, pre_data_select_x):
+    select_train_x = train_data_x.loc[patient_ids]
+    if is_transfer == 1:
+        transfer_weight = global_feature_weight
+        fit_train_x = select_train_x * transfer_weight
+        fit_test_x = pre_data_select_x * transfer_weight
+    else:
+        fit_train_x = select_train_x
+        fit_test_x = pre_data_select_x
+    return fit_test_x, fit_train_x
 
 
 def print_result_info():
@@ -146,34 +126,33 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 5
-    xgb_boost_num = 50
-    xgb_thread_num = 1
-
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
-    n_components = int(sys.argv[3])
+    # start_idx = int(sys.argv[3])
+    # end_idx = int(sys.argv[4])  # 50520
+    top_k_mean = int(sys.argv[3])
 
-    m_sample_weight = 0.01
+    pool_nums = 5
+
     start_idx = 0
+    local_lr_iter = 100
     select = 10
     select_ratio = select * 0.01
-    params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
-
-    xgb_model = get_xgb_model_pkl(0)
-    init_similar_weight = get_init_similar_weight(0)
+    m_sample_weight = 0.01
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
+    init_similar_weight = get_init_similar_weight(0)
+    global_feature_weight = get_transfer_weight(0)
 
     """
-    version = 3 直接跑
-    version = 4 使用全局匹配
+    version = 1 初始修改
+    version = 2 全局匹配
     """
-    version = 4
+    version = 2
     # ================== save file name ====================
-    program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
-    save_result_file = f"./result/all_XGB_result_save.csv"
-    save_path = f"./result/S05/{hos_id}/"
+    program_name = f"S06_LR_id{hos_id}_tra{is_transfer}_mean{top_k_mean}_v{version}"
+    save_result_file = f"./result/S06_all_result_save.csv"
+    save_path = f"./result/S06/{hos_id}/"
     if not os.path.exists(save_path):
         try:
             os.makedirs(save_path)
@@ -182,7 +161,7 @@ if __name__ == '__main__':
             pass
 
     test_result_file_name = os.path.join(
-        save_path, f"S05_XGB_test_tra{is_transfer}_boost{num_boost_round}_comp{n_components}_v{version}.csv")
+        save_path, f"S06_lr_test_tra{is_transfer}_boost{local_lr_iter}_mean{top_k_mean}_v{version}.csv")
     # =====================================================
 
     # 获取数据
@@ -198,30 +177,26 @@ if __name__ == '__main__':
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    # PCA降维
-    pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
-
+    my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
     my_logger.warning(
-        f"[params] - version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
-        f"test_idx:[{start_idx}, {end_idx}]")
+        f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, max_iter:{local_lr_iter}, select:{select}, test_idx:[{start_idx}, {end_idx}]")
 
-    # 10%匹配患者
     len_split = int(select_ratio * train_data_x.shape[0])
-    test_id_list = pca_test_data_x.index.values
+    test_id_list = test_data_x.index.values
 
     test_result = pd.DataFrame(index=test_id_list, columns=['real', 'prob'])
     test_result['real'] = test_data_y
 
-    global_lock = threading.Lock()
-    my_logger.warning("starting personalized modelling...")
+    global_lock = Lock()
+    my_logger.warning("starting ...")
+
     s_t = time.time()
-    # 匹配相似样本（从训练集） XGB建模 多线程
+    # 匹配相似样本（从训练集） 建模 多线程
     with ThreadPoolExecutor(max_workers=pool_nums) as executor:
         thread_list = []
         for test_id in test_id_list:
             pre_data_select = test_data_x.loc[[test_id]]
-            pca_pre_data_select = pca_test_data_x.loc[[test_id]]
-            thread = executor.submit(personalized_modeling, test_id, pre_data_select, pca_pre_data_select)
+            thread = executor.submit(personalized_modeling, test_id, pre_data_select)
             thread_list.append(thread)
         wait(thread_list, return_when=ALL_COMPLETED)
 
@@ -229,3 +204,4 @@ if __name__ == '__main__':
     my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
     print_result_info()
+

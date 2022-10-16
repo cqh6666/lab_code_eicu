@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 2
+    pool_nums = 5
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -108,15 +108,13 @@ if __name__ == '__main__':
     m_sample_weight = 0.01
     xgb_boost_num = 50
     select = 10
-    # 分成5批，每一批1w个测试样本
-    init_similar_weight = get_xgb_init_similar_weight(hos_id)
 
     xgb_thread_num = 1
     select_ratio = select * 0.01
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
+    init_similar_weight = get_xgb_init_similar_weight(0)
     if is_transfer == 1:
         xgb_model = get_xgb_model_pkl(0)
     else:
@@ -127,8 +125,9 @@ if __name__ == '__main__':
     version = 5 类权重
     version = 6 匹配全局（错误版本，没用全局模型）
     version = 7 平均数填充，用全局模型
+    version = 8 全局相似性度量 和 全局模型
     """
-    version = 7
+    version = 8
     # ================== save file name ====================
     program_name = f"S04_XGB_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False

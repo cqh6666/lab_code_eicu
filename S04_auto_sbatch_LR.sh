@@ -1,7 +1,7 @@
 #!/bin/sh
 start=0
 end=5000
-all_hos=(73 167 264 338 420)
+all_hos=(73 167)
 #all_hos=(73)
 for hos_id in ${all_hos[@]}
 do

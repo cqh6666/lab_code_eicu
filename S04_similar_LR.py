@@ -116,7 +116,7 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     # 匹配全局样本需要用全局的transfer
     global_feature_weight = get_transfer_weight(0)
-    init_similar_weight = get_init_similar_weight(hos_id)
+    init_similar_weight = get_init_similar_weight(0)
 
     """
     version=1  local_lr_iter = 100
@@ -126,8 +126,9 @@ if __name__ == '__main__':
     version = 5 不做类平衡权重会如何
     version = 6 匹配全局数据 （出错了，没用全局度量）
     version = 7 正确版本 使用全局相似性度量和全局迁移参数 平均数填充
+    version = 8 使用全局相似性度量和全局初始度量
     """
-    version = 7
+    version = 8
     # ================== save file name ====================
     program_name = f"S04_LR_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False

@@ -18,13 +18,13 @@ from sklearn.metrics import roc_auc_score
 import pandas as pd
 
 step = 4
-version = 7
-model = 'lr'
+version = 6
+model = 'XGB'
 # model = 'XGB'
 
 local_boost = [50, 100]
 select_rate = [10]
-hos_id_list = [0, 73, 167, 264, 420, 338]
+hos_id_list = [73, 167]
 # hos_id_list = [0]
 columns = ['host_id', 'local_boost', 'select_rate', 'transfer', 'no_transfer']
 

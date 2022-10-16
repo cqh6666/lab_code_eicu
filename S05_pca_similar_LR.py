@@ -155,16 +155,17 @@ if __name__ == '__main__':
     m_sample_weight = 0.01
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    global_feature_weight = get_transfer_weight(hos_id)
-    init_similar_weight = get_init_similar_weight(hos_id)
+    global_feature_weight = get_transfer_weight(0)
+    init_similar_weight = get_init_similar_weight(0)
     """
     version = 1
     version = 2 不分批测试
     version = 3 不分批正式
+    version = 4 使用全局匹配
     """
-    version = 3
+    version = 4
     # ================== save file name ====================
-    program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components}"
+    program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
     save_result_file = f"./result/all_result_save.csv"
     save_path = f"./result/S05/{hos_id}/"
     if not os.path.exists(save_path):

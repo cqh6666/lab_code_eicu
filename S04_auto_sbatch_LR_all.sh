@@ -1,5 +1,4 @@
 #!/bin/sh
-sleep 10h
 step=5000
 final=10000
 let start=0
