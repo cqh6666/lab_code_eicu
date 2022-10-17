@@ -123,7 +123,7 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 10
+    pool_nums = 4
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -136,18 +136,25 @@ if __name__ == '__main__':
     select = 10
     select_ratio = select * 0.01
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
-    xgb_model = get_xgb_model_pkl(0)
+    if is_transfer == 1:
+        xgb_model = get_xgb_model_pkl(0)
+    else:
+        xgb_model = None
+
     init_similar_weight = get_init_similar_weight(0)
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     """
     version = 1 初始版本
     version = 2 全局匹配
+    version = 3 正确版本（非全局匹配）
+    version = 4 全局匹配版本 【错误，没有用all train】
+    version = 5 全局匹配版本
     """
-    version = 2
+    version = 5
     # ================== save file name ====================
-    program_name = f"S06_XGB_id{hos_id}_tra{is_transfer}_mean{top_k_mean}"
-    save_result_file = f"./result/S06_all_result_save.csv"
+    program_name = f"S06_XGB_id{hos_id}_tra{is_transfer}_mean{top_k_mean}_v{version}"
+    save_result_file = f"./result/S06_all_id{hos_id}_result_save.csv"
     save_path = f"./result/S06/{hos_id}/"
     if not os.path.exists(save_path):
         try:
@@ -165,6 +172,9 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+
+    # 改为匹配全局，修改为全部数据
+    train_data_x, _, train_data_y, _ = get_all_data_X_y()
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本

@@ -17,6 +17,7 @@ import time
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+
 TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file"
 all_data_file_name = "all_data_df_v1.feather"
 # all_data_norm_file_name = "all_data_df_norm_v2.feather"
@@ -71,6 +72,25 @@ def get_all_data_X_y():
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
     return train_data_x, test_data_x, train_data_y, test_data_y
+
+
+def get_match_data_from_hos_data(hos_id):
+    """
+    根据hos_id匹配全局数据，剔除当前hos_id的测试集数据
+    :param hos_id:
+    :return:
+    """
+    test_id_list = get_hos_test_data_id(hos_id)
+    # todo: 未完成
+
+def get_hos_test_data_id(hos_id):
+    data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
+    all_data = pd.read_feather(data_file)
+    all_data_x = all_data.drop(["level_0", y_label], axis=1)
+    all_data_y = all_data[y_label]
+    train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
+                                                                            random_state=random_state)
+    return test_data_x[patient_id].tolist()
 
 
 def get_hos_data_X_y(hos_id):

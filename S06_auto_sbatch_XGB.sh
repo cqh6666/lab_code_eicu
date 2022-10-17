@@ -1,7 +1,7 @@
 #!/bin/sh
-#all_hos=(73 167 264 338 420)
-all_hos=(0)
-mean_list=(10)
+all_hos=(73 167)
+#all_hos=(0)
+mean_list=(5 20)
 for comp in ${mean_list[@]}
 do
   for hos_id in ${all_hos[@]}

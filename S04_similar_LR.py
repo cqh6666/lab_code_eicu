@@ -54,8 +54,7 @@ def lr_train(fit_train_x, fit_train_y, fit_test_x, sample_ki):
     if len(fit_train_y.value_counts()) <= 1:
         return train_data_y[0]
 
-    # lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter)
-    lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter, class_weight='balanced')
+    lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter)
     lr_local.fit(fit_train_x, fit_train_y, sample_ki)
     predict_prob = lr_local.predict_proba(fit_test_x)[0][1]
     return predict_prob
@@ -101,7 +100,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 4
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -115,8 +114,8 @@ if __name__ == '__main__':
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     # 匹配全局样本需要用全局的transfer
-    global_feature_weight = get_transfer_weight(0)
-    init_similar_weight = get_init_similar_weight(0)
+    global_feature_weight = get_transfer_weight(hos_id)
+    init_similar_weight = get_init_similar_weight(hos_id)
 
     """
     version=1  local_lr_iter = 100
@@ -127,8 +126,9 @@ if __name__ == '__main__':
     version = 6 匹配全局数据 （出错了，没用全局度量）
     version = 7 正确版本 使用全局相似性度量和全局迁移参数 平均数填充
     version = 8 使用全局相似性度量和全局初始度量
+    version = 9 不用类平衡权重
     """
-    version = 8
+    version = 9
     # ================== save file name ====================
     program_name = f"S04_LR_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
     is_send = False
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
     # 改为匹配全局，修改为全部数据
-    train_data_x, _, train_data_y, _ = get_all_data_X_y()
+    # train_data_x, _, train_data_y, _ = get_all_data_X_y()
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值

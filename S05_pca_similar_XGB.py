@@ -133,7 +133,8 @@ def print_result_info():
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
-    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time, score]
+    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time,
+                                                                     score]
     save_to_csv_by_row(save_result_file, save_df)
 
     # 发送邮箱
@@ -146,7 +147,7 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 4
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -160,7 +161,11 @@ if __name__ == '__main__':
     select_ratio = select * 0.01
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
-    xgb_model = get_xgb_model_pkl(0)
+    if is_transfer == 1:
+        xgb_model = get_xgb_model_pkl(0)
+    else:
+        xgb_model = None
+
     init_similar_weight = get_init_similar_weight(0)
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
@@ -168,11 +173,14 @@ if __name__ == '__main__':
     """
     version = 3 直接跑
     version = 4 使用全局匹配
+    version = 5 使用正确的迁移xgb_model（全局匹配） 【错误】
+    version = 6 非全局匹配
+    version = 7 使用正确的迁移xgb_model（全局匹配）
     """
-    version = 4
+    version = 7
     # ================== save file name ====================
     program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
-    save_result_file = f"./result/all_XGB_result_save.csv"
+    save_result_file = f"./result/all_id{hos_id}_XGB_result_save.csv"
     save_path = f"./result/S05/{hos_id}/"
     if not os.path.exists(save_path):
         try:
@@ -190,6 +198,9 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+
+    # 改为匹配全局，修改为全部数据
+    train_data_x, _, train_data_y, _ = get_all_data_X_y()
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本

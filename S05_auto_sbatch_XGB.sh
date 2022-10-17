@@ -1,8 +1,8 @@
 #!/bin/sh
 #all_hos=(0)
 #all_hos=(73)
-all_hos=(73 167)
-comps_list=(100)
+all_hos=(0)
+comps_list=(1000)
 for comp in ${comps_list[@]}
 do
   for hos_id in ${all_hos[@]}
