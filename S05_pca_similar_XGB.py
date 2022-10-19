@@ -151,24 +151,26 @@ if __name__ == '__main__':
     xgb_boost_num = 50
     xgb_thread_num = 1
 
-    hos_id = int(sys.argv[1])
-    is_transfer = int(sys.argv[2])
-    n_components = int(sys.argv[3])
+    # hos_id = int(sys.argv[1])
+    # is_transfer = int(sys.argv[2])
+    # n_components = int(sys.argv[3])
+    hos_id = 167
+    is_transfer = 1
+    n_components = 1000
+
 
     m_sample_weight = 0.01
     start_idx = 0
     select = 10
     select_ratio = select * 0.01
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
-
-    if is_transfer == 1:
-        xgb_model = get_xgb_model_pkl(0)
-    else:
-        xgb_model = None
-
-    init_similar_weight = get_init_similar_weight(0)
-
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
+
+    # 获取xgb_model和初始度量  是否全局匹配
+    is_match_all = False
+    match_hos_id = 0 if is_match_all else hos_id  # 0代表用全部
+    xgb_model = get_xgb_model_pkl(match_hos_id) if is_transfer == 1 else None
+    init_similar_weight = get_init_similar_weight(match_hos_id)
 
     """
     version = 3 直接跑
@@ -177,7 +179,7 @@ if __name__ == '__main__':
     version = 6 非全局匹配
     version = 7 使用正确的迁移xgb_model（全局匹配）
     """
-    version = 7
+    version = 6
     # ================== save file name ====================
     program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
     save_result_file = f"./result/all_id{hos_id}_XGB_result_save.csv"
@@ -200,7 +202,9 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
     # 改为匹配全局，修改为全部数据
-    train_data_x, _, train_data_y, _ = get_all_data_X_y()
+    if is_match_all:
+        train_data_x, _, train_data_y, _ = get_all_data_X_y()
+        my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...")
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本

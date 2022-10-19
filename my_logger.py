@@ -48,4 +48,5 @@ class MyLog(object):
         return console_handler
 
 
-
+if __name__ == '__main__':
+    pass

@@ -173,4 +173,6 @@ def save_to_csv_by_row(csv_file, new_df):
 
 
 if __name__ == '__main__':
-    all_data = get_all_data()
+    train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+
+
