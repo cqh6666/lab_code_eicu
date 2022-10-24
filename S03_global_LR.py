@@ -142,12 +142,16 @@ if __name__ == '__main__':
 
     # ============================= save file ==================================== #
     program_name = f"S03_global_LR"
-    version = 1
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v1.pkl")
-    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v1.csv")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v1.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v1.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v1.csv")
+    """
+    version = 3 不做类平衡权重
+    version = 4 做类平衡权重
+    """
+    # version = 3 不做类平衡权重的AUC
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v4.pkl")
+    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v4.csv")
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v4.csv")
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v4.csv")
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v4.csv")
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()

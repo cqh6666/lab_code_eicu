@@ -1,8 +1,8 @@
 #!/bin/sh
 #source xxx.sh
 #all_hos=(0)
-all_hos=(0 73 167 264 338 420)
-version=5
+all_hos=(73 167 264 338 420)
+version=3
 #all_hos=(73)
 for hos_id in ${all_hos[@]}
 do

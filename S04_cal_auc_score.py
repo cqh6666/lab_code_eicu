@@ -18,8 +18,8 @@ from sklearn.metrics import roc_auc_score
 import pandas as pd
 
 step = 4
-version = 9
-model = 'LR'
+version = 13
+model = 'lr'
 # model = 'XGB'
 
 local_boost = [50, 100]

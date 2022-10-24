@@ -22,11 +22,13 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import xgboost as xgb
 
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y
-from email_api import send_success_mail, send_an_error_message
+from email_api import send_success_mail, send_an_error_message, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
+
 warnings.filterwarnings('ignore')
 
 
@@ -85,11 +87,28 @@ def personalized_modeling(test_id, pre_data_select):
         global_lock.release()
     except Exception as err:
         print(traceback.format_exc())
-        global is_send
-        if not is_send:
-            send_an_error_message(program_name=program_name, error_name=repr(err), error_detail=traceback.format_exc())
-            is_send = True
         sys.exit(1)
+
+
+def print_result_info():
+    # 不能存在NaN
+    if test_result.isna().sum().sum() > 0:
+        print("exist NaN...")
+        sys.exit(1)
+    test_result.to_csv(test_result_file_name)
+    # 计算auc性能
+    score = roc_auc_score(test_result['real'], test_result['prob'])
+    my_logger.info(f"auc score: {score}")
+    # save到全局结果集合里
+    save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
+    start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
+    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time,
+                                                                     score]
+    save_to_csv_by_row(save_result_file, save_df)
+
+    # 发送邮箱
+    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=run_end_time)
+    print("end!")
 
 
 if __name__ == '__main__':
@@ -98,7 +117,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 2
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -114,11 +133,11 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
-    init_similar_weight = get_xgb_init_similar_weight(0)
-    if is_transfer == 1:
-        xgb_model = get_xgb_model_pkl(0)
-    else:
-        xgb_model = None
+    # other_hos_id = 167 if hos_id == 73 else 73
+    # 获取xgb_model和初始度量  是否全局匹配
+    init_similar_weight = get_xgb_init_similar_weight(hos_id)
+    xgb_model = get_xgb_model_pkl(0) if is_transfer == 1 else None
+
     """
     version=1
     version = 4 中位数填充
@@ -126,11 +145,22 @@ if __name__ == '__main__':
     version = 6 匹配全局（错误版本，没用全局模型）
     version = 7 平均数填充，用全局模型
     version = 8 全局相似性度量 和 全局模型
+    version = 10 基于该中心相似度量匹配中心10%比例  init_weight hos_id  global_weight hos_id
+    version = 11 基于该中心相似度量匹配全局样本10%  init_weight hos_id  xgb_model 0
+    version = 12 基于全局相似度量匹配该中心10%比例  init_weight 0 xgb_model hos_id
+    version = 13 基于该中心相似度量匹配全局样本等样本量  init_weight hos_id global_weight 0 
+    version = 14 基于全局相似度量匹配全局样本10% init_weight 0 global_weight 0
+    version = 15 基于全局相似度量匹配全局等样本（该中心） init_weight 0  global_weight 0
+    version = 16 基于该中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
+    version = 17 基于该中心相似度量匹配其他中心等样本量  init_weight hos_id global_weight other_hos_id
+    version = 18 基于其他中心相似度量匹配当前中心10%  init_weight other_hos_id global_weight hos_id
+    version = 19 基于其他中心相似度量匹配其他中心10%  init_weight other_hos_id global_weight other_hos_id
+    version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     """
-    version = 8
+    version = "13"
     # ================== save file name ====================
-    program_name = f"S04_XGB_{hos_id}_{is_transfer}_{start_idx}_{end_idx}"
-    is_send = False
+    program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
+    save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
     save_path = f"./result/S04/{hos_id}/"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -142,11 +172,22 @@ if __name__ == '__main__':
     # 获取数据
     if hos_id == 0:
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        match_data_len = int(select_ratio * train_data_x.shape[0])
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+        # 计算匹配的样本
+        match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     train_data_x, _, train_data_y, _ = get_all_data_X_y()
+    my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...")
+
+    # 改为匹配其他中心
+    # train_data_x, _, train_data_y, _ = get_hos_data_X_y(0)
+    # my_logger.warning("匹配数据 - 局部训练集修改为其他中心训练数据...train_data_shape:{}".format(train_data_x.shape))
+    # 10%匹配患者
+    len_split = match_data_len
+    # len_split = int(select_ratio * train_data_x.shape[0])
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
@@ -160,8 +201,6 @@ if __name__ == '__main__':
         f"[params] - version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
         f"index_range:[{start_idx}, {end_idx}]")
 
-    # 10%匹配患者
-    len_split = int(select_ratio * train_data_x.shape[0])
     test_id_list = test_data_x.index.values
 
     test_result = pd.DataFrame(index=test_id_list, columns=['real', 'prob'])
@@ -180,14 +219,7 @@ if __name__ == '__main__':
             thread_list.append(thread)
         wait(thread_list, return_when=ALL_COMPLETED)
 
-    e_t = time.time()
-    my_logger.warning(f"done - cost_time: {covert_time_format(e_t - s_t)}...")
+    run_end_time = time.time()
+    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
-    # save concat test_result csv
-    if save_to_csv_by_row(test_result_file_name, test_result):
-        my_logger.info("save test result prob success!")
-    else:
-        my_logger.info("save error...")
-
-    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
-    print("end!")
+    print_result_info()

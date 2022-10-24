@@ -137,11 +137,11 @@ if __name__ == '__main__':
     select_ratio = select * 0.01
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
     if is_transfer == 1:
-        xgb_model = get_xgb_model_pkl(0)
+        xgb_model = get_xgb_model_pkl(hos_id)
     else:
         xgb_model = None
 
-    init_similar_weight = get_init_similar_weight(0)
+    init_similar_weight = get_init_similar_weight(hos_id)
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     """
@@ -150,8 +150,9 @@ if __name__ == '__main__':
     version = 3 正确版本（非全局匹配）
     version = 4 全局匹配版本 【错误，没有用all train】
     version = 5 全局匹配版本
+    version = 6 非全局匹配
     """
-    version = 5
+    version = 6
     # ================== save file name ====================
     program_name = f"S06_XGB_id{hos_id}_tra{is_transfer}_mean{top_k_mean}_v{version}"
     save_result_file = f"./result/S06_all_id{hos_id}_result_save.csv"
@@ -174,7 +175,7 @@ if __name__ == '__main__':
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
     # 改为匹配全局，修改为全部数据
-    train_data_x, _, train_data_y, _ = get_all_data_X_y()
+    # train_data_x, _, train_data_y, _ = get_all_data_X_y()
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本

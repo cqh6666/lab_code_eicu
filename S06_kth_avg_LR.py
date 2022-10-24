@@ -141,14 +141,15 @@ if __name__ == '__main__':
     m_sample_weight = 0.01
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    init_similar_weight = get_init_similar_weight(0)
-    global_feature_weight = get_transfer_weight(0)
+    init_similar_weight = get_init_similar_weight(hos_id)
+    global_feature_weight = get_transfer_weight(hos_id)
 
     """
     version = 1 初始修改
     version = 2 全局匹配
+    version = 3 局部匹配
     """
-    version = 2
+    version = 3
     # ================== save file name ====================
     program_name = f"S06_LR_id{hos_id}_tra{is_transfer}_mean{top_k_mean}_v{version}"
     save_result_file = f"./result/S06_all_result_save.csv"
