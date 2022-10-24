@@ -74,14 +74,35 @@ def get_all_data_X_y():
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
-def get_match_data_from_hos_data(hos_id):
+def get_match_all_data_from_hos_data(hos_id):
     """
     根据hos_id匹配全局数据，剔除当前hos_id的测试集数据
     :param hos_id:
     :return:
     """
-    test_id_list = get_hos_test_data_id(hos_id)
-    # todo: 未完成
+    # 1. 获取全局数据训练集（包含patient_id）
+    all_data = get_all_norm_data()
+    all_data_x = all_data.drop([y_label, hospital_id], axis=1)
+    all_data_y = all_data[y_label]
+    train_data_x, _, train_data_y, _ = train_test_split(all_data_x, all_data_y, test_size=0.3,
+                                                        random_state=random_state)
+    # 2. 获取当下hos_id数据的 测试集 patient_id
+    data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
+    hos_data = pd.read_feather(data_file)
+    hos_data_x = hos_data.drop(["level_0", y_label], axis=1)
+    hos_data_y = hos_data[y_label]
+    _, test_data_x, _, _ = train_test_split(hos_data_x, hos_data_y, test_size=0.3,
+                                            random_state=random_state)
+    hos_test_data_id_list = test_data_x['index'].tolist()
+
+    # 3. 去除全局数据中的训练集数据中包含测试集ID
+    condition_df = train_data_x['index'].isin(hos_test_data_id_list)
+    match_data_x = train_data_x[~condition_df]
+    match_data_y = train_data_y[~condition_df]
+    match_data_x = match_data_x.drop(['index'], axis=1)
+
+    return match_data_x, match_data_y
+
 
 def get_hos_test_data_id(hos_id):
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
@@ -90,7 +111,7 @@ def get_hos_test_data_id(hos_id):
     all_data_y = all_data[y_label]
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
-    return test_data_x[patient_id].tolist()
+    return train_data_x, test_data_x, train_data_y, test_data_y
 
 
 def get_hos_data_X_y(hos_id):
@@ -173,6 +194,5 @@ def save_to_csv_by_row(csv_file, new_df):
 
 
 if __name__ == '__main__':
-    train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
-
-
+    all_data_x, _, all_data_y, _ = get_all_data_X_y()
+    train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_test_data_id(73)
