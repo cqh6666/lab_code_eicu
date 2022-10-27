@@ -65,6 +65,8 @@ def get_all_data_X_y():
     :return:
     """
     all_data = get_all_norm_data()
+    # 增加病人ID索引
+    all_data.index = all_data[patient_id].tolist()
 
     all_data_x = all_data.drop([y_label, hospital_id, patient_id], axis=1)
     all_data_y = all_data[y_label]
@@ -122,12 +124,29 @@ def get_hos_data_X_y(hos_id):
     """
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
     all_data = pd.read_feather(data_file)
+    all_data.index = all_data[patient_id].tolist()
     print("load hosp_data", hos_id, all_data.shape)
     all_data_x = all_data.drop(["level_0", y_label, patient_id], axis=1)
     all_data_y = all_data[y_label]
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
     return train_data_x, test_data_x, train_data_y, test_data_y
+
+
+def get_target_test_id(hos_id):
+    """
+    得到50个正样本，50个负样本来进行分析
+    :return:
+    """
+    if hos_id == 0:
+        _, _, _, test_data_y = get_all_data_X_y()
+    else:
+        _, _, _, test_data_y = get_hos_data_X_y(hos_id)
+
+    test_data_ids_1 = test_data_y[test_data_y == 1].index[:50].values
+    test_data_ids_0 = test_data_y[test_data_y == 0].index[:50].values
+
+    return test_data_ids_1, test_data_ids_0
 
 
 def get_top5_data():
@@ -194,5 +213,6 @@ def save_to_csv_by_row(csv_file, new_df):
 
 
 if __name__ == '__main__':
-    all_data_x, _, all_data_y, _ = get_all_data_X_y()
-    train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_test_data_id(73)
+    # all_data_x, _, all_data_y, _ = get_all_data_X_y()
+    train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
+    test1, test0 = get_target_test_id(73)

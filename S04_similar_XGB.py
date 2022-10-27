@@ -24,7 +24,8 @@ import xgboost as xgb
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y, \
+    get_match_all_data_from_hos_data
 from email_api import send_success_mail, send_an_error_message, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
@@ -133,11 +134,24 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
-    # other_hos_id = 167 if hos_id == 73 else 73
-    # 获取xgb_model和初始度量  是否全局匹配
-    init_similar_weight = get_xgb_init_similar_weight(hos_id)
-    xgb_model = get_xgb_model_pkl(0) if is_transfer == 1 else None
+    other_hos_id = 167 if hos_id == 73 else 73
 
+    init_psm_id = hos_id  # 初始相似性度量
+    is_train_same = True  # 训练样本数是否等样本量
+    is_match_all = True  # 是否匹配全局样本
+    is_match_other = False  # 是否匹配其他中心样本
+
+    if is_match_all:
+        transfer_id = 0
+    else:
+        transfer_id = other_hos_id if is_match_other else hos_id
+
+    assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
+    my_logger.warning("init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(init_psm_id, is_train_same, is_match_all, transfer_id))
+
+    # 获取xgb_model和初始度量  是否全局匹配
+    init_similar_weight = get_xgb_init_similar_weight(init_psm_id)
+    xgb_model = get_xgb_model_pkl(transfer_id) if is_transfer == 1 else None
     """
     version=1
     version = 4 中位数填充
@@ -145,19 +159,20 @@ if __name__ == '__main__':
     version = 6 匹配全局（错误版本，没用全局模型）
     version = 7 平均数填充，用全局模型
     version = 8 全局相似性度量 和 全局模型
-    version = 10 基于该中心相似度量匹配中心10%比例  init_weight hos_id  global_weight hos_id
-    version = 11 基于该中心相似度量匹配全局样本10%  init_weight hos_id  xgb_model 0
-    version = 12 基于全局相似度量匹配该中心10%比例  init_weight 0 xgb_model hos_id
-    version = 13 基于该中心相似度量匹配全局样本等样本量  init_weight hos_id global_weight 0 
-    version = 14 基于全局相似度量匹配全局样本10% init_weight 0 global_weight 0
-    version = 15 基于全局相似度量匹配全局等样本（该中心） init_weight 0  global_weight 0
+    version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
+    version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
+    version = 12 基于全局相似度量匹配该中心10%比例  init_psm_id = 0, is_train_same = False, is_match_all = False
+    version = 13 基于该中心相似度量匹配全局样本等样本量  init_psm_id = hos_id, is_train_same = True, is_match_all = True
+    version = 14 基于全局相似度量匹配全局样本10% init_psm_id = 0, is_train_same = False, is_match_all = True
+    version = 15 基于全局相似度量匹配全局等样本（该中心） init_psm_id = 0, is_train_same = True, is_match_all = True
+    
     version = 16 基于该中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
     version = 17 基于该中心相似度量匹配其他中心等样本量  init_weight hos_id global_weight other_hos_id
     version = 18 基于其他中心相似度量匹配当前中心10%  init_weight other_hos_id global_weight hos_id
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight other_hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     """
-    version = "13"
+    version = "13_M"
     # ================== save file name ====================
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
@@ -168,7 +183,6 @@ if __name__ == '__main__':
     test_result_file_name = os.path.join(
         save_path, f"S04_XGB_test_tra{is_transfer}_boost{xgb_boost_num}_select{select}_v{version}.csv")
     # =====================================================
-
     # 获取数据
     if hos_id == 0:
         train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
@@ -179,15 +193,22 @@ if __name__ == '__main__':
         match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
-    train_data_x, _, train_data_y, _ = get_all_data_X_y()
-    my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...")
+    if is_match_all:
+        train_data_x, train_data_y = get_match_all_data_from_hos_data(hos_id)
+        my_logger.warning(
+                "匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 
     # 改为匹配其他中心
-    # train_data_x, _, train_data_y, _ = get_hos_data_X_y(0)
-    # my_logger.warning("匹配数据 - 局部训练集修改为其他中心训练数据...train_data_shape:{}".format(train_data_x.shape))
-    # 10%匹配患者
-    len_split = match_data_len
-    # len_split = int(select_ratio * train_data_x.shape[0])
+    if is_match_other:
+        train_data_x, _, train_data_y, _ = get_hos_data_X_y(other_hos_id)
+        my_logger.warning(
+            "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
+
+    # 是否等样本量匹配
+    if is_train_same:
+        len_split = match_data_len
+    else:
+        len_split = int(select_ratio * train_data_x.shape[0])
 
     final_idx = test_data_x.shape[0]
     end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
