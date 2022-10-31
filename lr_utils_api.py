@@ -17,7 +17,7 @@ import os
 
 MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/S03/{}'
 global_lr_iter = 1000
-version = 3  # 不做类平衡权重
+version = 5  # 不做类平衡权重
 
 
 def get_init_similar_weight(hos_id):

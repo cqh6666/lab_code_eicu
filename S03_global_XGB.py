@@ -14,7 +14,7 @@ import pickle
 import os
 import numpy as np
 
-from api_utils import get_all_data_X_y, get_hos_data_X_y
+from api_utils import get_all_data_X_y, get_hos_data_X_y, get_train_test_data_X_y
 import time
 
 from email_api import send_success_mail
@@ -122,13 +122,14 @@ if __name__ == '__main__':
     run_start_time = time.time()
     # 自定义日志
     global_boost_nums = 1000
-    hos_id = int(sys.argv[1])
+    # hos_id = int(sys.argv[1])
+    hos_id = 0
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
@@ -142,20 +143,20 @@ if __name__ == '__main__':
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
-    # for max_idx in range(600, 1001, 100):
-    #     global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'cost_time'] = \
-    #         xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=max_idx, save=True)
+    for max_idx in range(600, 1001, 100):
+        global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'cost_time'] = \
+            xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=max_idx, save=True)
 
-    global_auc.loc[global_boost_nums, 'auc_score'], global_auc.loc[global_boost_nums, 'cost_time'] = \
-        xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=global_boost_nums, save=True)
+    # global_auc.loc[global_boost_nums, 'auc_score'], global_auc.loc[global_boost_nums, 'cost_time'] = \
+    #     xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=global_boost_nums, save=True)
 
     global_auc.to_csv(save_result_file)
     print("done!")
 
     xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
 
-    # frac_list = np.arange(0.05, 1.01, 0.05)
-    frac_list = [0.1]
+    frac_list = np.arange(0.05, 1.01, 0.05)
+    # frac_list = [0.1]
     transfers = [0, 1]
     num_boosts = [50]
     sub_global_auc = pd.DataFrame()

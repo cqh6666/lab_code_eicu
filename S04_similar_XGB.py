@@ -25,7 +25,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y, \
-    get_match_all_data_from_hos_data
+    get_match_all_data_from_hos_data, get_train_test_data_X_y, get_match_all_data
 from email_api import send_success_mail, send_an_error_message, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
@@ -122,8 +122,6 @@ if __name__ == '__main__':
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
-    start_idx = int(sys.argv[3])
-    end_idx = int(sys.argv[4])
 
     m_sample_weight = 0.01
     xgb_boost_num = 50
@@ -159,6 +157,7 @@ if __name__ == '__main__':
     version = 6 匹配全局（错误版本，没用全局模型）
     version = 7 平均数填充，用全局模型
     version = 8 全局相似性度量 和 全局模型
+    version = 9 全局
     version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
     version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
     version = 12 基于全局相似度量匹配该中心10%比例  init_psm_id = 0, is_train_same = False, is_match_all = False
@@ -172,7 +171,7 @@ if __name__ == '__main__':
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight other_hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     """
-    version = "13_M"
+    version = "9_T"
     # ================== save file name ====================
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
@@ -185,7 +184,7 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
         match_data_len = int(select_ratio * train_data_x.shape[0])
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
@@ -194,7 +193,7 @@ if __name__ == '__main__':
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_match_all_data_from_hos_data(hos_id)
+        train_data_x, train_data_y = get_match_all_data()
         my_logger.warning(
                 "匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 
@@ -210,8 +209,9 @@ if __name__ == '__main__':
     else:
         len_split = int(select_ratio * train_data_x.shape[0])
 
+    start_idx = 0
     final_idx = test_data_x.shape[0]
-    end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
+    end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
 
     # 分批次进行个性化建模
     test_data_x = test_data_x.iloc[start_idx:end_idx]

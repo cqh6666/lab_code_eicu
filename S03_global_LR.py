@@ -19,7 +19,7 @@ import sys
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, recall_score
-from api_utils import get_hos_data_X_y, get_all_data_X_y
+from api_utils import get_hos_data_X_y, get_all_data_X_y, get_train_test_data_X_y
 
 import time
 import os
@@ -130,13 +130,14 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
 if __name__ == '__main__':
     run_start_time = time.time()
     global_max_iter = 1000
-    hos_id = int(sys.argv[1])
+    # hos_id = int(sys.argv[1])
+    hos_id = 0
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
@@ -145,26 +146,27 @@ if __name__ == '__main__':
     """
     version = 3 不做类平衡权重
     version = 4 做类平衡权重
+    version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     """
     # version = 3 不做类平衡权重的AUC
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v4.pkl")
-    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v4.csv")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v4.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v4.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v4.csv")
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v5.pkl")
+    transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v5.csv")
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v5.csv")
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_lr_v5.csv")
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v5.csv")
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
-    # for max_idx in range(200, 1001, 200):
-    #     global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
+    for max_idx in range(200, 1001, 200):
+        global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
     global_auc.loc[global_max_iter, 'auc_score'], global_auc.loc[global_max_iter, 'recall_score'], global_auc.loc[global_max_iter, 'cost_time'] = global_train(global_max_iter)
 
     global_auc.to_csv(save_result_file)
     print("global done!")
 
     global_feature_weight = pd.read_csv(transfer_weight_file.format(global_max_iter)).squeeze().tolist()
-    # frac_list = np.arange(0.05, 1.01, 0.05)
-    frac_list = [0.1]
+    frac_list = np.arange(0.05, 1.01, 0.05)
+    # frac_list = [0.1]
     transfers = [0]
     local_iter = [100]
     sub_global_auc = pd.DataFrame()

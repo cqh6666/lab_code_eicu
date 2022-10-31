@@ -25,7 +25,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y, \
-    get_match_all_data_from_hos_data
+    get_match_all_data_from_hos_data, get_train_test_data_X_y, get_match_all_data
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from email_api import send_success_mail, send_an_error_message, get_run_time
 from my_logger import MyLog
@@ -120,12 +120,10 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 8
+    pool_nums = 2
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
-    start_idx = int(sys.argv[3])
-    end_idx = int(sys.argv[4])
 
     local_lr_iter = 100
     select = 10
@@ -135,7 +133,7 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = 0  # 初始相似性度量
+    init_psm_id = hos_id  # 初始相似性度量
     is_train_same = False  # 训练样本数是否等样本量
     is_match_all = False  # 是否匹配全局样本
 
@@ -144,7 +142,7 @@ if __name__ == '__main__':
     if is_match_all:
         transfer_id = 0
     else:
-        transfer_id = other_hos_id if is_match_other else hos_id
+        transfer_id = hos_id if not is_match_other else other_hos_id
 
     assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
 
@@ -160,8 +158,13 @@ if __name__ == '__main__':
     version = 6 匹配全局数据 （出错了，没用全局度量）
     version = 7 正确版本 使用全局相似性度量和全局迁移参数 平均数填充
     version = 8 使用全局相似性度量和全局初始度量
-    version = 9 不用类平衡权重,正确版本
+    version = 9 不用类平衡权重,全局
     version = 100 基于该中心相似度量匹配中心10%比例  init_weight hos_id  global_weight hos_id  增加类权重
+    
+    ===============================================================
+    T  代表重新进行了分割数据
+    
+    ===============================================================
     version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
     version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
     version = 12 基于全局相似度量匹配该中心10%比例  init_psm_id = 0, is_train_same = False, is_match_all = False
@@ -174,8 +177,9 @@ if __name__ == '__main__':
     version = 18 基于其他中心相似度量匹配当前中心10%  init_weight other_hos_id global_weight hos_id
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
+    
     """
-    version = "12_N"
+    version = "9_T"
     # ================== save file name ====================
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
@@ -188,7 +192,7 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
         match_data_len = -1  # 全局就不需要这个参数了
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
@@ -196,7 +200,7 @@ if __name__ == '__main__':
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_match_all_data_from_hos_data(hos_id)
+        train_data_x, train_data_y = get_match_all_data()
         my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 
     # 改为匹配其他中心
@@ -207,12 +211,14 @@ if __name__ == '__main__':
 
     # 是否等样本量匹配
     if is_train_same:
+        assert match_data_len == -1, "训练全局数据不需要等样本匹配"
         len_split = match_data_len
     else:
         len_split = int(select_ratio * train_data_x.shape[0])
 
+    start_idx = 0
     final_idx = test_data_x.shape[0]
-    end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
+    end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
 
     # 分批次进行个性化建模
     test_data_x = test_data_x.iloc[start_idx:end_idx]

@@ -12,8 +12,10 @@
 """
 __author__ = 'cqh'
 
+import numpy as np
 import os
 import time
+import feather
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -76,6 +78,88 @@ def get_all_data_X_y():
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
+def get_train_test_data_X_y():
+    """
+    获取训练集测试集
+    :return:
+    """
+    train_X_file = os.path.join(TRAIN_PATH, "all_data_df_norm_train_X_v1.feather")
+    test_X_file = os.path.join(TRAIN_PATH, "all_data_df_norm_test_X_v1.feather")
+    train_y_file = os.path.join(TRAIN_PATH, "all_data_df_norm_train_y_v1.feather")
+    test_y_file = os.path.join(TRAIN_PATH, "all_data_df_norm_test_y_v1.feather")
+
+    # 不存在文件就分割数据
+    if not os.path.exists(test_y_file):
+        print("not exist! begin split...")
+        all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y = \
+            split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file)
+    else:
+        print("exist! start loading...")
+        all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y = \
+            pd.read_feather(train_X_file), pd.read_feather(test_X_file), \
+            pd.read_feather(train_y_file).squeeze(), pd.read_feather(test_y_file).squeeze()
+
+    # 去除hospital_id
+    all_train_data_x.drop([hospital_id], axis=1, inplace=True)
+    all_test_data_x.drop([hospital_id], axis=1, inplace=True)
+    return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+
+
+def split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file):
+    """
+    根据每个中心按7:3分割，最后合并成总的7:3，包含hos_id
+    :param test_X_file:
+    :param test_y_file:
+    :param train_X_file:
+    :param train_y_file:
+    :return:
+    """
+    all_data = get_all_norm_data()
+    # 增加病人ID索引
+    all_data.index = all_data[patient_id].tolist()
+    hospital_ids = all_data[hospital_id].value_counts().index.tolist()
+    all_train_data_x = pd.DataFrame()
+    all_test_data_x = pd.DataFrame()
+    all_train_data_y = pd.Series(dtype=np.int64)
+    all_test_data_y = pd.Series(dtype=np.int64)
+    for hos_id in hospital_ids:
+        cur_data = all_data[all_data[hospital_id] == hos_id]
+        # 不去除hos_id
+        cur_data_x = cur_data.drop([y_label, patient_id], axis=1)
+        cur_data_y = cur_data[y_label]
+        if cur_data.shape[0] < 10:
+            all_train_data_x = pd.concat([all_train_data_x, cur_data_x], axis=0)
+            all_train_data_y = pd.concat([all_train_data_y, cur_data_y], axis=0)
+            continue
+
+        train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(cur_data_x, cur_data_y, test_size=0.3,
+                                                                                random_state=random_state)
+        all_train_data_x = pd.concat([all_train_data_x, train_data_x], axis=0)
+        all_train_data_y = pd.concat([all_train_data_y, train_data_y], axis=0)
+        all_test_data_x = pd.concat([all_test_data_x, test_data_x], axis=0)
+        all_test_data_y = pd.concat([all_test_data_y, test_data_y], axis=0)
+        print(hos_id, "done...")
+    print("concat success!")
+    # save
+    feather.write_dataframe(all_train_data_x, train_X_file)
+    feather.write_dataframe(all_test_data_x, test_X_file)
+    feather.write_dataframe(pd.DataFrame(all_train_data_y), train_y_file)
+    feather.write_dataframe(pd.DataFrame(all_test_data_y), test_y_file)
+    print("save success!")
+    return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+
+
+def get_match_all_data():
+    """
+    更新版本
+    :param hos_id:
+    :return:
+    """
+    match_data_X, _, match_data_y, _ = get_train_test_data_X_y()
+    return match_data_X, match_data_y
+
+
+@DeprecationWarning
 def get_match_all_data_from_hos_data(hos_id):
     """
     根据hos_id匹配全局数据，剔除当前hos_id的测试集数据
@@ -106,6 +190,7 @@ def get_match_all_data_from_hos_data(hos_id):
     return match_data_x, match_data_y
 
 
+@DeprecationWarning
 def get_hos_test_data_id(hos_id):
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
     all_data = pd.read_feather(data_file)
@@ -213,6 +298,8 @@ def save_to_csv_by_row(csv_file, new_df):
 
 
 if __name__ == '__main__':
-    # all_data_x, _, all_data_y, _ = get_all_data_X_y()
+    # data = get_all_norm_data()
+    # all_data_x, t_data_x, all_data_y, t_data_y = get_all_data_X_y()
     train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
-    test1, test0 = get_target_test_id(73)
+    # test1, test0 = get_target_test_id(73)
+    all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()

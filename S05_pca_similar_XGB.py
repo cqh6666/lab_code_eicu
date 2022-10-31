@@ -158,7 +158,6 @@ if __name__ == '__main__':
     # is_transfer = 1
     # n_components = 1000
 
-
     m_sample_weight = 0.01
     start_idx = 0
     select = 10
