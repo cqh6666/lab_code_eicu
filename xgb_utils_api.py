@@ -18,18 +18,23 @@ import pickle
 
 import xgboost as xgb
 
-MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/{}'
+MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/S03/{}'
 global_xgb_boost = 1000
+"""
+version = 5 不用类权重参数
+version = 7 类权重参数
+"""
+version = 7
 
 
 def get_xgb_model_pkl(hos_id):
-    xgb_model_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f"S03_global_xgb_{global_xgb_boost}_v1.pkl")
+    xgb_model_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f"S03_global_xgb_{global_xgb_boost}_v{version}.pkl")
     xgb_model = pickle.load(open(xgb_model_file, "rb"))
     return xgb_model
 
 
 def get_init_similar_weight(hos_id):
-    init_similar_weight_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f'S03_0_psm_global_xgb_{global_xgb_boost}_v1.csv')
+    init_similar_weight_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f'S03_0_psm_global_xgb_{global_xgb_boost}_v{version}.csv')
     init_similar_weight = pd.read_csv(init_similar_weight_file).squeeze().tolist()
     return init_similar_weight
 

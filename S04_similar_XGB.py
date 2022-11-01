@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 2
+    pool_nums = 3
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -134,15 +134,16 @@ if __name__ == '__main__':
 
     other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = hos_id  # 初始相似性度量
+    init_psm_id = 0  # 初始相似性度量
     is_train_same = True  # 训练样本数是否等样本量
     is_match_all = True  # 是否匹配全局样本
+
     is_match_other = False  # 是否匹配其他中心样本
 
     if is_match_all:
         transfer_id = 0
     else:
-        transfer_id = other_hos_id if is_match_other else hos_id
+        transfer_id = hos_id if not is_match_other else other_hos_id
 
     assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
     my_logger.warning("init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(init_psm_id, is_train_same, is_match_all, transfer_id))
@@ -158,6 +159,13 @@ if __name__ == '__main__':
     version = 7 平均数填充，用全局模型
     version = 8 全局相似性度量 和 全局模型
     version = 9 全局
+    ===============================================================
+    T  代表重新进行了分割数据
+    -7 用类权重参数训练得到的初始相似度量和全局迁移 （自己不做类权重）
+    -5 不用类权重的初始相似度量和全局迁移（自己不做类权重）
+    -4 用类权重的初始相似度量和全局迁移 （自己也做类权重）
+    -3 不用类权重的初始相似度量和全局迁移 （自己也做类权重）
+    ===============================================================
     version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
     version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
     version = 12 基于全局相似度量匹配该中心10%比例  init_psm_id = 0, is_train_same = False, is_match_all = False
@@ -171,7 +179,7 @@ if __name__ == '__main__':
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight other_hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     """
-    version = "9_T"
+    version = "15-7"
     # ================== save file name ====================
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
@@ -185,7 +193,7 @@ if __name__ == '__main__':
     # 获取数据
     if hos_id == 0:
         train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
-        match_data_len = int(select_ratio * train_data_x.shape[0])
+        match_data_len = -1
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
         # 计算匹配的样本
@@ -205,6 +213,7 @@ if __name__ == '__main__':
 
     # 是否等样本量匹配
     if is_train_same:
+        assert not hos_id == 0 & match_data_len == -1, "训练全局数据不需要等样本匹配"
         len_split = match_data_len
     else:
         len_split = int(select_ratio * train_data_x.shape[0])

@@ -48,11 +48,16 @@ y = X[[label]]
 X = X.drop(columns=label)
 train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(X, y, test_size=0.3, random_state=42)
 
-def lr_global_train(train_iter):
+
+def lr_global_train(train_iter, class_weigth_flag):
     train_x_ft = train_data_x
     test_x_ft = test_data_x
 
-    lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1, class_weight='balanced')
+    if class_weigth_flag:
+        lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1, class_weight='balanced')
+    else:
+        lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1)
+
     lr_all.fit(train_x_ft, train_data_y)
     y_predict = lr_all.decision_function(test_x_ft)
     auc = roc_auc_score(test_data_y, y_predict)
@@ -61,6 +66,9 @@ def lr_global_train(train_iter):
     print(
         f'[global] - max_iter:{train_iter}, train_iter:{lr_all.n_iter_}, auc: {auc}, recall: {recall}')
 
+    weight_importance = lr_all.coef_[0]
+    weight_importance_df = pd.DataFrame({"feature_weight": weight_importance})
+    weight_importance_df.to_csv(f"weight_important_{train_iter}_{class_weigth_flag}.csv")
     return auc, recall
 
 
@@ -112,7 +120,11 @@ def get_shap_value(train_x, model):
     return res
 
 
-my_auc, my_model = xgb_train_global(100)
+# my_auc, my_model = xgb_train_global(100)
 # shap_value = get_shap_value(train_data_x, my_model)
 
-lr_global_train(100)
+lr_global_train(100, True)
+lr_global_train(100, False)
+
+lr_global_train(500, True)
+lr_global_train(500, False)

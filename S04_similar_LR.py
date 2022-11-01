@@ -57,7 +57,7 @@ def lr_train(fit_train_x, fit_train_y, fit_test_x, sample_ki):
         return train_data_y[0]
 
     lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter)
-    # lr_local.fit(fit_train_x, fit_train_y)
+    # lr_local = LogisticRegression(solver="liblinear", n_jobs=1, max_iter=local_lr_iter, class_weight='balanced')
     lr_local.fit(fit_train_x, fit_train_y, sample_ki)
     predict_prob = lr_local.predict_proba(fit_test_x)[0][1]
     return predict_prob
@@ -74,14 +74,12 @@ def personalized_modeling(patient_id, pre_data_select_x):
         patient_ids, sample_ki = get_similar_rank(pre_data_select_x)
 
         fit_train_y = train_data_y.loc[patient_ids]
-        select_train_x = train_data_x.loc[patient_ids]
 
         if is_transfer == 1:
-            transfer_weight = global_feature_weight
-            fit_train_x = select_train_x * transfer_weight
-            fit_test_x = pre_data_select_x * transfer_weight
+            fit_train_x = transfer_train_data_X.loc[patient_ids]
+            fit_test_x = pre_data_select_x * global_feature_weight
         else:
-            fit_train_x = select_train_x
+            fit_train_x = train_data_x.loc[patient_ids]
             fit_test_x = pre_data_select_x
 
         predict_prob = lr_train(fit_train_x, fit_train_y, fit_test_x, sample_ki)
@@ -105,8 +103,7 @@ def print_result_info():
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
-    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time,
-                                                                     score]
+    save_df.loc[program_name + "_" + str(os.getpid()), :] = [start_time_date, end_time_date, run_date_time, score]
     save_to_csv_by_row(save_result_file, save_df)
 
     # 发送邮箱
@@ -120,7 +117,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 2
+    pool_nums = 4
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -134,8 +131,8 @@ if __name__ == '__main__':
     other_hos_id = 167 if hos_id == 73 else 73
 
     init_psm_id = hos_id  # 初始相似性度量
-    is_train_same = False  # 训练样本数是否等样本量
-    is_match_all = False  # 是否匹配全局样本
+    is_train_same = True  # 训练样本数是否等样本量
+    is_match_all = True  # 是否匹配全局样本
 
     is_match_other = False  # 是否匹配其他中心样本
 
@@ -146,24 +143,31 @@ if __name__ == '__main__':
 
     assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
 
-    my_logger.warning("init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(init_psm_id, is_train_same, is_match_all, transfer_id))
+    my_logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
     init_similar_weight = get_init_similar_weight(init_psm_id)
     global_feature_weight = get_transfer_weight(transfer_id)
     """
-    version=1  local_lr_iter = 100
-    version=2  有错误重新调整
-    version=3  压缩数据
+    version = 1  local_lr_iter = 100
+    version = 2  有错误重新调整
+    version = 3  压缩数据
     version = 4 中位数填充
     version = 5 不做类平衡权重会如何
     version = 6 匹配全局数据 （出错了，没用全局度量）
     version = 7 正确版本 使用全局相似性度量和全局迁移参数 平均数填充
     version = 8 使用全局相似性度量和全局初始度量
     version = 9 不用类平衡权重,全局
-    version = 100 基于该中心相似度量匹配中心10%比例  init_weight hos_id  global_weight hos_id  增加类权重
     
     ===============================================================
     T  代表重新进行了分割数据
-    
+    -11 基于该中心（v5）匹配全局迁移(v7)
+    -10 基于全局（v7）匹配该中心迁移(v5)
+    -9 用0.01：0.99的类权重的初始相似度量和全局迁移 （自己不做类权重）
+    -8 用0.05：0.95的类权重的初始相似度量和全局迁移 （自己不做类权重）
+    -7 用1：9的类权重的初始相似度量和全局迁移 （自己不做类权重）
+    -6 用类权重的初始相似度量和全局迁移 （自己不做类权重）
+    -5 不用类权重的初始相似度量和全局迁移（自己不做类权重）
+    -4 用类权重的初始相似度量和全局迁移 （自己也做类权重）
+    -3 不用类权重的初始相似度量和全局迁移 （自己也做类权重）
     ===============================================================
     version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
     version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
@@ -179,7 +183,7 @@ if __name__ == '__main__':
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     
     """
-    version = "9_T"
+    version = "13-11"
     # ================== save file name ====================
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
@@ -211,7 +215,7 @@ if __name__ == '__main__':
 
     # 是否等样本量匹配
     if is_train_same:
-        assert match_data_len == -1, "训练全局数据不需要等样本匹配"
+        assert not hos_id == 0 & match_data_len == -1, "训练全局数据不需要等样本匹配"
         len_split = match_data_len
     else:
         len_split = int(select_ratio * train_data_x.shape[0])
@@ -234,6 +238,11 @@ if __name__ == '__main__':
 
     test_result = pd.DataFrame(index=test_id_list, columns=['real', 'prob'])
     test_result['real'] = test_data_y
+
+    # 提前计算迁移后的训练集和测试集
+    if is_transfer == 1:
+        transfer_train_data_X = train_data_x * global_feature_weight
+        transfer_test_data_X = test_data_x * global_feature_weight
 
     global_lock = Lock()
     my_logger.warning("starting ...")

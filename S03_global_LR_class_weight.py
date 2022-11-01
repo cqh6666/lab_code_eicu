@@ -31,29 +31,13 @@ from email_api import send_success_mail
 warnings.filterwarnings('ignore')
 
 
-def save_weight_importance_to_csv(train_iter, weight_important):
-    # 不标准化 初始特征重要性
-    weight_importance_df = pd.DataFrame({"feature_weight": weight_important})
-    tra_file = transfer_weight_file.format(train_iter)
-    weight_importance_df.to_csv(tra_file, index=False)
-    print(f"save to csv success! - {tra_file}")
-
-    # 标准化 用作psm_0
-    weight_importance = [abs(i) for i in weight_important]
-    normalize_weight_importance = [i / sum(weight_importance) for i in weight_importance]
-    normalize_weight_importance_df = pd.DataFrame({"normalize_weight": normalize_weight_importance})
-    psm_file = init_psm_weight_file.format(train_iter)
-    normalize_weight_importance_df.to_csv(psm_file, index=False)
-    print(f"save to csv success! - {psm_file}")
-
-
-def global_train(train_iter):
+def global_train(train_iter, weight_dict):
     start_time = time.time()
 
     train_x_ft = train_data_x
     test_x_ft = test_data_x
 
-    lr_all = LogisticRegression(max_iter=train_iter, solver="liblinear", class_weight={0: 0.01, 1: 0.99})
+    lr_all = LogisticRegression(max_iter=train_iter, solver="liblinear", class_weight=weight_dict)
     # lr_all = LogisticRegression(solver='liblinear', max_iter=train_iter, n_jobs=-1)
     lr_all.fit(train_x_ft, train_data_y)
     y_predict = lr_all.decision_function(test_x_ft)
@@ -61,14 +45,10 @@ def global_train(train_iter):
     recall = recall_score(test_data_y, lr_all.predict(test_data_x))
     run_time = round(time.time() - start_time, 2)
 
-    # save feature weight
-    weight_importance = lr_all.coef_[0]
-    save_weight_importance_to_csv(train_iter, weight_importance)
-
     # save model
-    file = model_file_name_file.format(train_iter)
-    pickle.dump(lr_all, open(file, "wb"))
-    print(f"save lr model to pkl - [{file}]")
+    # file = model_file_name_file.format(train_iter)
+    # pickle.dump(lr_all, open(file, "wb"))
+    # print(f"save lr model to pkl - [{file}]")
 
     print(
         f'[global] - max_iter:{train_iter}, train_iter:{lr_all.n_iter_}, cost time: {run_time} s, auc: {auc}, recall: {recall}')
@@ -116,7 +96,7 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
         fit_train_x = train_x_ft
         fit_test_x = test_data_x
 
-    lr_local = LogisticRegression(max_iter=local_iter_idx, solver="liblinear")
+    lr_local = LogisticRegression(max_iter=local_iter_idx, solver="liblinear", class_weight='balanced')
     # lr_local = LogisticRegression(max_iter=local_iter_idx, solver="liblinear")
     lr_local.fit(fit_train_x, train_y_ft)
     y_predict = lr_local.decision_function(fit_test_x)
@@ -133,7 +113,7 @@ if __name__ == '__main__':
     run_start_time = time.time()
     global_max_iter = 1000
     # hos_id = int(sys.argv[1])
-    hos_id = 73
+    hos_id = 0
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
@@ -150,12 +130,10 @@ if __name__ == '__main__':
     version = 4 做类平衡权重
     version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     version = 6 重新按7:3分割数据，做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
-    version = 7 重新按7:3分割数据，做类平衡权重0.1：0.9
-    version = 8 重新按7:3分割数据，做类平衡权重0.05：0.95
-    version = 9 重新按7:3分割数据，做类平衡权重0.01：0.99
+    version = 7 重新按7:3分割数据，做不同类平衡权重
     """
     # version = 3 不做类平衡权重的AUC
-    version = 9
+    version = 6
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v" + "{}.pkl".format(version))
     transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v" + "{}.csv".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v" + "{}.csv".format(version))
@@ -163,34 +141,40 @@ if __name__ == '__main__':
     save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_lr_v" + "{}.csv".format(version))
     # ============================= save file ==================================== #
 
-    global_auc = pd.DataFrame()
+    weights_all = np.linspace(0.1, 0.9, 9)
+
+    for cur_weight in weights_all:
+        print(f"==================================== {cur_weight} ====================================")
+        global_train(train_iter=global_max_iter, weight_dict={0: cur_weight, 1: 1.0 - cur_weight})
+        print(f"==================================== {cur_weight} ====================================")
+    # global_train(global_max_iter, {0: 0.1, 1:})
+
+    # global_auc = pd.DataFrame()
     # for max_idx in range(200, 1001, 200):
     #     global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'recall_score'], global_auc.loc[max_idx, 'cost_time'] = global_train(max_idx)
-    global_auc.loc[global_max_iter, 'auc_score'], global_auc.loc[global_max_iter, 'recall_score'], global_auc.loc[
-        global_max_iter, 'cost_time'] = global_train(global_max_iter)
+    # global_auc.loc[global_max_iter, 'auc_score'], global_auc.loc[global_max_iter, 'recall_score'], global_auc.loc[global_max_iter, 'cost_time'] = global_train(global_max_iter)
+    # global_auc.to_csv(save_result_file)
+    # print("global done!")
 
-    global_auc.to_csv(save_result_file)
-    print("global done!")
+    # global_feature_weight = pd.read_csv(transfer_weight_file.format(global_max_iter)).squeeze().tolist()
+    # # frac_list = np.arange(0.05, 1.01, 0.05)
+    # frac_list = [0.1]
+    # transfers = [0]
+    # local_iter = [100]
+    # sub_global_auc = pd.DataFrame()
+    # index = 0
+    # for i in frac_list:
+    #     for j in transfers:
+    #         for k in local_iter:
+    #             temp_auc, cost_time = sub_global_train(select_rate=i, is_transfer=j, local_iter_idx=k)
+    #             sub_global_auc.loc[index, 'select_rate'] = i
+    #             sub_global_auc.loc[index, 'is_transfer'] = j
+    #             sub_global_auc.loc[index, 'local_iter'] = k
+    #             sub_global_auc.loc[index, 'auc_score'] = temp_auc
+    #             sub_global_auc.loc[index, 'cost_time'] = cost_time
+    #             index += 1
+    #
+    # sub_global_auc.to_csv(save_result_file2)
 
-    global_feature_weight = pd.read_csv(transfer_weight_file.format(global_max_iter)).squeeze().tolist()
-    # frac_list = np.arange(0.05, 1.01, 0.05)
-    frac_list = [0.1]
-    transfers = [0, 1]
-    local_iter = [100]
-    sub_global_auc = pd.DataFrame()
-    index = 0
-    for i in frac_list:
-        for j in transfers:
-            for k in local_iter:
-                temp_auc, cost_time = sub_global_train(select_rate=i, is_transfer=j, local_iter_idx=k)
-                sub_global_auc.loc[index, 'select_rate'] = i
-                sub_global_auc.loc[index, 'is_transfer'] = j
-                sub_global_auc.loc[index, 'local_iter'] = k
-                sub_global_auc.loc[index, 'auc_score'] = temp_auc
-                sub_global_auc.loc[index, 'cost_time'] = cost_time
-                index += 1
-
-    sub_global_auc.to_csv(save_result_file2)
-
-    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
+    # send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
     print("done!")

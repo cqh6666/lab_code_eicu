@@ -25,6 +25,7 @@ def get_xgb_params(num_boost):
         'booster': 'gbtree',
         'max_depth': 11,
         'min_child_weight': 7,
+        'scale_pos_weight': scale_weight,
         'subsample': 1,
         'colsample_bytree': 0.7,
         'eta': 0.05,
@@ -123,7 +124,9 @@ if __name__ == '__main__':
     # 自定义日志
     global_boost_nums = 1000
     # hos_id = int(sys.argv[1])
-    hos_id = 0
+    # scale_weight = int(sys.argv[2])
+    hos_id = 73
+    scale_weight = 9
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
@@ -133,30 +136,36 @@ if __name__ == '__main__':
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
-    # select_srate = int(sys.argv[2])
     # ============================= save file ==================================== #
+    """
+    version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样） 
+    version = 6 重新按7:3分割数据，做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
+    version = 7 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 9  0.851623899
+    version = 8 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 3  
+    """
     program_name = f"S03_global_XGB"
-    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v2.pkl")
-    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v2.csv")
-    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v2.csv")
-    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_xgb_v2.csv")
+    version = 7
+    model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
+    init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
+    save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))
+    save_result_file2 = os.path.join(MODEL_SAVE_PATH, "S03_auc_sub_global_xgb_v" + "{}.csv".format(version))
     # ============================= save file ==================================== #
 
     global_auc = pd.DataFrame()
-    for max_idx in range(600, 1001, 100):
-        global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'cost_time'] = \
-            xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=max_idx, save=True)
+    # for max_idx in range(600, 1001, 100):
+    #     global_auc.loc[max_idx, 'auc_score'], global_auc.loc[max_idx, 'cost_time'] = \
+    #         xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=max_idx, save=True)
 
-    # global_auc.loc[global_boost_nums, 'auc_score'], global_auc.loc[global_boost_nums, 'cost_time'] = \
-    #     xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=global_boost_nums, save=True)
+    global_auc.loc[global_boost_nums, 'auc_score'], global_auc.loc[global_boost_nums, 'cost_time'] = \
+        xgb_train_global(train_data_x, train_data_y, xgb_model_=None, num_boost=global_boost_nums, save=True)
 
     global_auc.to_csv(save_result_file)
     print("done!")
 
     xgb_model = pickle.load(open(model_file_name_file.format(global_boost_nums), "rb"))
 
-    frac_list = np.arange(0.05, 1.01, 0.05)
-    # frac_list = [0.1]
+    # frac_list = np.arange(0.05, 1.01, 0.05)
+    frac_list = [0.1]
     transfers = [0, 1]
     num_boosts = [50]
     sub_global_auc = pd.DataFrame()
