@@ -24,7 +24,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y
 from email_api import send_success_mail, get_run_time
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from my_logger import MyLog
@@ -94,20 +94,31 @@ def personalized_modeling(patient_id, pre_data_select_x, pca_pre_data_select_x):
 
 
 def pca_reduction(train_x, test_x, similar_weight, n_comp):
-    if n_comp >= train_x.shape[1]:
-        n_comp = train_x.shape[1] - 1
+    """
+    pca降维, n_comp更改为百分比
+    :param train_x:
+    :param test_x:
+    :param similar_weight:
+    :param n_comp:
+    :return:
+    """
+    if n_comp >= 1:
+        my_logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
+        sys.exit(1)
 
     my_logger.warning(f"starting pca by train_data...")
     # pca降维
     pca_model = PCA(n_components=n_comp, random_state=2022)
     # 转换需要 * 相似性度量
-    new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
-    new_test_data_x = pca_model.transform(test_x * similar_weight)
+    new_train_data_x = pca_model.fit_transform(train_x)
+    # new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
+    # new_test_data_x = pca_model.transform(test_x * similar_weight)
+    new_test_data_x = pca_model.transform(test_x)
     # 转成df格式
     pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
     pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
 
-    my_logger.info(f"n_components: {pca_model.n_components}, svd_solver:{pca_model.svd_solver}.")
+    my_logger.info(f"n_components: [{pca_model.n_components}, {pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}")
 
     return pca_train_x, pca_test_x
 
@@ -124,7 +135,7 @@ def print_result_info():
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
-    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time, score]
+    save_df.loc[program_name + "_" + str(os.getpid()), :] = [start_time_date, end_time_date, run_date_time, score]
     save_to_csv_by_row(save_result_file, save_df)
 
     # 发送邮箱
@@ -139,10 +150,11 @@ if __name__ == '__main__':
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
-    n_components = int(sys.argv[3])
+    n_components = float(sys.argv[3])
 
-    pool_nums = 3
+    pool_nums = 5
 
+    n_components_str = str(int(n_components * 100))
     start_idx = 0
     local_lr_iter = 100
     select = 10
@@ -159,10 +171,12 @@ if __name__ == '__main__':
     version = 4 使用全局匹配
     version = 5 500 1000 降维
     version = 6 新版 100 500 1000
+    version = 7 0.7 0.8 0.9 0.95 0.99
+    version = 8 0.7 0.8 0.9 0.95 0.99 不用相似性度量
     """
-    version = 6
+    version = 8
     # ================== save file name ====================
-    program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
+    program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_LR_all_result_save.csv"
     save_path = f"./result/S05/{hos_id}/"
     if not os.path.exists(save_path):
@@ -173,12 +187,12 @@ if __name__ == '__main__':
             pass
 
     test_result_file_name = os.path.join(
-        save_path, f"S05_lr_test_tra{is_transfer}_boost{local_lr_iter}_comp{n_components}_v{version}.csv")
+        save_path, f"S05_LR_test_tra{is_transfer}_boost{local_lr_iter}_comp{n_components_str}_v{version}.csv")
     # =====================================================
 
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
@@ -197,7 +211,7 @@ if __name__ == '__main__':
 
     my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
     my_logger.warning(
-        f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, max_iter:{local_lr_iter}, select:{select}, version:{version}, test_idx:[{start_idx}, {end_idx}]")
+        f"[params] - pid:{os.getpid()}, model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, max_iter:{local_lr_iter}, select:{select}, version:{version}, test_idx:[{start_idx}, {end_idx}]")
 
     len_split = int(select_ratio * train_data_x.shape[0])
     test_id_list = pca_test_data_x.index.values

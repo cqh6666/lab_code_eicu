@@ -25,7 +25,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 
 from my_logger import MyLog
-from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y
 from email_api import send_success_mail, get_run_time
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_init_similar_weight
 
@@ -96,15 +96,16 @@ def personalized_modeling(test_id_, pre_data_select_, pca_pre_data_select_):
 
 def pca_reduction(train_x, test_x, similar_weight, n_comp):
     """
-    传入训练集和测试集，PCA降维前先得先乘以相似性度量
+    传入训练集和测试集，PCA降维前先得先乘以相似性度量, n_comp为(0,1]
     :param train_x:
     :param test_x:
     :param similar_weight:
     :param n_comp:
     :return:
     """
-    if n_comp >= train_x.shape[1]:
-        n_comp = train_x.shape[1] - 1
+    if n_comp >= 1:
+        my_logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
+        sys.exit(1)
 
     my_logger.warning(f"starting pca by train_data...")
     # pca降维
@@ -116,7 +117,7 @@ def pca_reduction(train_x, test_x, similar_weight, n_comp):
     pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
     pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
 
-    my_logger.info(f"n_components: {pca_model.n_components}, svd_solver:{pca_model.svd_solver}.")
+    my_logger.info(f"n_components: [{pca_model.n_components},{pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}.")
 
     return pca_train_x, pca_test_x
 
@@ -133,8 +134,7 @@ def print_result_info():
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
-    save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time,
-                                                                     score]
+    save_df.loc[program_name + "_" + str(os.getpid()), :] = [start_time_date, end_time_date, run_date_time, score]
     save_to_csv_by_row(save_result_file, save_df)
 
     # 发送邮箱
@@ -147,13 +147,16 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 4
+    pool_nums = 3
     xgb_boost_num = 50
     xgb_thread_num = 1
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
-    n_components = int(sys.argv[3])
+    n_components = float(sys.argv[3])
+
+    n_components_str = str(n_components * 100)
+
     # hos_id = 167
     # is_transfer = 1
     # n_components = 1000
@@ -175,10 +178,11 @@ if __name__ == '__main__':
     version = 5 使用正确的迁移xgb_model（全局匹配） 【错误】
     version = 6 非全局匹配
     version = 7 使用正确的迁移xgb_model（全局匹配）
+    version = 8 0.7 0.8 0.9 0.95 0.99
     """
-    version = 6
+    version = 8
     # ================== save file name ====================
-    program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components}_v{version}"
+    program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_XGB_all_result_save.csv"
     save_path = f"./result/S05/{hos_id}/"
     if not os.path.exists(save_path):
@@ -189,12 +193,12 @@ if __name__ == '__main__':
             pass
 
     test_result_file_name = os.path.join(
-        save_path, f"S05_XGB_test_tra{is_transfer}_boost{num_boost_round}_comp{n_components}_v{version}.csv")
+        save_path, f"S05_XGB_test_tra{is_transfer}_boost{num_boost_round}_comp{n_components_str}_v{version}.csv")
     # =====================================================
 
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_all_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
     else:
         train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
 
@@ -213,7 +217,7 @@ if __name__ == '__main__':
     pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
 
     my_logger.warning(
-        f"[params] - version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
+        f"[params] - pid:{os.getpid()}, version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
         f"test_idx:[{start_idx}, {end_idx}]")
 
     # 10%匹配患者

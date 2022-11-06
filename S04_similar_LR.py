@@ -24,10 +24,10 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y, \
-    get_match_all_data_from_hos_data, get_train_test_data_X_y, get_match_all_data
+from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
+    get_train_test_data_X_y, get_match_all_data
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
-from email_api import send_success_mail, send_an_error_message, get_run_time
+from email_api import send_success_mail, get_run_time
 from my_logger import MyLog
 
 warnings.filterwarnings('ignore')
@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 4
+    pool_nums = 10
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -131,8 +131,8 @@ if __name__ == '__main__':
     other_hos_id = 167 if hos_id == 73 else 73
 
     init_psm_id = hos_id  # 初始相似性度量
-    is_train_same = True  # 训练样本数是否等样本量
-    is_match_all = True  # 是否匹配全局样本
+    is_train_same = False  # 训练样本数是否等样本量
+    is_match_all = False  # 是否匹配全局样本
 
     is_match_other = False  # 是否匹配其他中心样本
 
@@ -182,8 +182,9 @@ if __name__ == '__main__':
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
     
+    version = 21 全局个性化建模 hos_id = 0
     """
-    version = "13-11"
+    version = "21"
     # ================== save file name ====================
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"

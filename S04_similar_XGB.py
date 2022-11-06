@@ -24,9 +24,9 @@ import xgboost as xgb
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_all_data_X_y, get_hos_data_X_y, \
-    get_match_all_data_from_hos_data, get_train_test_data_X_y, get_match_all_data
-from email_api import send_success_mail, send_an_error_message, get_run_time
+from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
+    get_train_test_data_X_y, get_match_all_data
+from email_api import send_success_mail, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
 

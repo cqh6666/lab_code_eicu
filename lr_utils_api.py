@@ -23,7 +23,7 @@ version = 6 做平衡类权重
 version = 7 1：9 类权重
 version = 8 0.05：0.95 类权重
 """
-global_version = 7
+global_version = 5
 hos_version = 5
 version = 5
 
