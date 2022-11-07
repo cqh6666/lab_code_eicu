@@ -9,12 +9,11 @@ import sys
 
 import pandas as pd
 import xgboost as xgb
-from sklearn.metrics import roc_auc_score, recall_score
+from sklearn.metrics import roc_auc_score
 import pickle
 import os
-import numpy as np
 
-from api_utils import get_all_data_X_y, get_hos_data_X_y, get_train_test_data_X_y
+from api_utils import get_fs_train_test_data_X_y,get_fs_hos_data_X_y
 import time
 
 from email_api import send_success_mail
@@ -25,7 +24,7 @@ def get_xgb_params(num_boost):
         'booster': 'gbtree',
         'max_depth': 11,
         'min_child_weight': 7,
-        'scale_pos_weight': scale_weight,
+        # 'scale_pos_weight': scale_weight,
         'subsample': 1,
         'colsample_bytree': 0.7,
         'eta': 0.05,
@@ -123,28 +122,29 @@ if __name__ == '__main__':
     run_start_time = time.time()
     # 自定义日志
     global_boost_nums = 1000
-    # hos_id = int(sys.argv[1])
+    hos_id = int(sys.argv[1])
     # scale_weight = int(sys.argv[2])
-    hos_id = 73
+    # hos_id = 73
     scale_weight = 9
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
 
     # ============================= save file ==================================== #
     """
     version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样） 
     version = 6 重新按7:3分割数据，做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     version = 7 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 9  0.851623899
-    version = 8 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 3  
+    version = 8 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 3
+    version = 10 特征选择后的新数据 xgb策略 1386
     """
     program_name = f"S03_global_XGB"
-    version = 7
+    version = 10
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
     save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))

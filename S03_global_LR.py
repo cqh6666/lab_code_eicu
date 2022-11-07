@@ -16,10 +16,9 @@ import pickle
 import random
 import sys
 
-import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, recall_score
-from api_utils import get_hos_data_X_y, get_all_data_X_y, get_train_test_data_X_y
+from api_utils import get_fs_hos_data_X_y, get_fs_train_test_data_X_y
 
 import time
 import os
@@ -132,16 +131,16 @@ def sub_global_train(select_rate=0.1, is_transfer=1, local_iter_idx=100):
 if __name__ == '__main__':
     run_start_time = time.time()
     global_max_iter = 1000
-    # hos_id = int(sys.argv[1])
-    hos_id = 73
+    hos_id = int(sys.argv[1])
+    # hos_id = 73
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
 
     # ============================= save file ==================================== #
     program_name = f"S03_global_LR"
@@ -153,9 +152,10 @@ if __name__ == '__main__':
     version = 7 重新按7:3分割数据，做类平衡权重0.1：0.9
     version = 8 重新按7:3分割数据，做类平衡权重0.05：0.95
     version = 9 重新按7:3分割数据，做类平衡权重0.01：0.99
+    version = 10 特征选择后的新数据 xgb策略 1386
     """
     # version = 3 不做类平衡权重的AUC
-    version = 9
+    version = 10
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v" + "{}.pkl".format(version))
     transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v" + "{}.csv".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v" + "{}.csv".format(version))

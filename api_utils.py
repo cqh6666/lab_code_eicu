@@ -61,6 +61,7 @@ def get_all_norm_data():
     return all_data
 
 
+@DeprecationWarning
 def get_all_data_X_y():
     """
     获取所有数据
@@ -103,6 +104,30 @@ def get_train_test_data_X_y():
     all_train_data_x.drop([hospital_id], axis=1, inplace=True)
     all_test_data_x.drop([hospital_id], axis=1, inplace=True)
     return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+
+
+def get_fs_train_test_data_X_y(strategy=2):
+    """
+    获取特征选择后的数据
+    两种策略
+    :return:
+    """
+    all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y = get_train_test_data_X_y()
+
+    if strategy == 1:
+        # LR特征选择
+        new_columns = pd.read_csv(
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns.csv",
+            index_col=0).squeeze().to_list()
+    elif strategy == 2:
+        # XGB特征选择
+        new_columns = pd.read_csv(
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns.csv",
+            index_col=0).squeeze().to_list()
+    else:
+        raise ValueError("策略参数不存在!")
+
+    return all_train_data_x[new_columns], all_test_data_x[new_columns], all_train_data_y, all_test_data_y
 
 
 def split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file):
@@ -218,13 +243,32 @@ def get_hos_data_X_y(hos_id):
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
+def get_fs_hos_data_X_y(hos_id, strategy=2):
+    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+
+    if strategy == 1:
+        # LR特征选择
+        new_columns = pd.read_csv(
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns.csv",
+            index_col=0).squeeze().to_list()
+    elif strategy == 2:
+        # XGB特征选择
+        new_columns = pd.read_csv(
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns.csv",
+            index_col=0).squeeze().to_list()
+    else:
+        raise ValueError("策略参数不存在!")
+
+    return train_data_x[new_columns], test_data_x[new_columns], train_data_y, test_data_y
+
+
 def get_target_test_id(hos_id):
     """
     得到50个正样本，50个负样本来进行分析
     :return:
     """
     if hos_id == 0:
-        _, _, _, test_data_y = get_all_data_X_y()
+        _, _, _, test_data_y = get_train_test_data_X_y()
     else:
         _, _, _, test_data_y = get_hos_data_X_y(hos_id)
 
@@ -300,6 +344,10 @@ def save_to_csv_by_row(csv_file, new_df):
 if __name__ == '__main__':
     # data = get_all_norm_data()
     # all_data_x, t_data_x, all_data_y, t_data_y = get_all_data_X_y()
-    train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
-    # test1, test0 = get_target_test_id(73)
-    all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
+    # train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
+    # # test1, test0 = get_target_test_id(73)
+    # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
+
+    # res1 = get_fs_train_test_data_X_y(strategy=1)
+    # res2 = get_fs_train_test_data_X_y(strategy=2)
+    pass
