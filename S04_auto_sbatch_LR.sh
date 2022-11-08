@@ -1,6 +1,5 @@
 #!/bin/sh
-#all_hos=(73 167 264 420 338)
-all_hos=(264)
+all_hos=(0 73 167)
 #all_hos=(0)
 for hos_id in ${all_hos[@]}
 do

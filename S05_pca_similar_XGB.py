@@ -25,7 +25,8 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 
 from my_logger import MyLog
-from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y, \
+    get_fs_train_test_data_X_y, get_fs_hos_data_X_y
 from email_api import send_success_mail, get_run_time
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_init_similar_weight
 
@@ -147,7 +148,7 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 3
+    pool_nums = 5
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -179,8 +180,9 @@ if __name__ == '__main__':
     version = 6 非全局匹配
     version = 7 使用正确的迁移xgb_model（全局匹配）
     version = 8 0.7 0.8 0.9 0.95 0.99
+    version = 10 xgb特征选择后的新数据 0.7 0.9 0.99
     """
-    version = 8
+    version = 10
     # ================== save file name ====================
     program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_XGB_all_result_save.csv"
@@ -198,9 +200,9 @@ if __name__ == '__main__':
 
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
 
     # 改为匹配全局，修改为全部数据
     # train_data_x, _, train_data_y, _ = get_all_data_X_y()

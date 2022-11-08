@@ -1,4 +1,5 @@
 #!/bin/sh
+sleep 8h
 #all_hos=(73)
 all_hos=(0)
 comps_list=(0.7 0.9 0.999)

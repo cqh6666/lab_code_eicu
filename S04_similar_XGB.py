@@ -25,7 +25,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
-    get_train_test_data_X_y, get_match_all_data
+    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_match_all_data
 from email_api import send_success_mail, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 3
+    pool_nums = 5
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -134,9 +134,9 @@ if __name__ == '__main__':
 
     other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = 0  # 初始相似性度量
-    is_train_same = True  # 训练样本数是否等样本量
-    is_match_all = True  # 是否匹配全局样本
+    init_psm_id = hos_id  # 初始相似性度量
+    is_train_same = False  # 训练样本数是否等样本量
+    is_match_all = False  # 是否匹配全局样本
 
     is_match_other = False  # 是否匹配其他中心样本
 
@@ -178,8 +178,11 @@ if __name__ == '__main__':
     version = 18 基于其他中心相似度量匹配当前中心10%  init_weight other_hos_id global_weight hos_id
     version = 19 基于其他中心相似度量匹配其他中心10%  init_weight other_hos_id global_weight other_hos_id
     version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
+    
+    version = 22 xgb特征选择后的数据 
+    version = 23 lr特征选择后的数据 
     """
-    version = "15-7"
+    version = "23"
     # ================== save file name ====================
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
@@ -192,16 +195,15 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
-        match_data_len = -1
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=1)
+        match_data_len = -1  # 全局就不需要这个参数了
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
-        # 计算匹配的样本
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=1)
         match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_match_all_data()
+        train_data_x, train_data_y = get_fs_match_all_data(strategy=1)
         my_logger.warning(
                 "匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 

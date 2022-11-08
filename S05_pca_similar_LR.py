@@ -24,7 +24,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, get_fs_train_test_data_X_y, get_fs_hos_data_X_y
 from email_api import send_success_mail, get_run_time
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from my_logger import MyLog
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     is_transfer = int(sys.argv[2])
     n_components = float(sys.argv[3])
 
-    pool_nums = 5
+    pool_nums = 3
 
     n_components_str = str(int(n_components * 100))
     start_idx = 0
@@ -173,8 +173,10 @@ if __name__ == '__main__':
     version = 6 新版 100 500 1000
     version = 7 0.7 0.8 0.9 0.95 0.99
     version = 8 0.7 0.8 0.9 0.95 0.99 不用相似性度量
+    version = 9 特征选择 lr
+    version = 10 特征选择 xgb
     """
-    version = 8
+    version = 10
     # ================== save file name ====================
     program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_LR_all_result_save.csv"
@@ -192,9 +194,9 @@ if __name__ == '__main__':
 
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
 
     # final_idx = test_data_x.shape[0]
     # end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值

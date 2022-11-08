@@ -1,6 +1,6 @@
 #!/bin/sh
-sleep 5h
-all_hos=(73 167)
+sleep 6h
+all_hos=(0)
 #all_hos=(73)
 #comps_list=(0.7 0.8 0.9 0.95 0.99)
 comps_list=(0.7 0.9 0.99)

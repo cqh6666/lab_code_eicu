@@ -23,8 +23,10 @@ global_xgb_boost = 1000
 """
 version = 5 不用类权重参数
 version = 7 类权重参数
+version = 10 xgb特征选择新数据
+version = 11 lr特征选择新数据
 """
-version = 5
+version = 11
 
 
 def get_xgb_model_pkl(hos_id):

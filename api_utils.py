@@ -184,6 +184,15 @@ def get_match_all_data():
     return match_data_X, match_data_y
 
 
+def get_fs_match_all_data(strategy=2):
+    """
+    特征处理后的匹配数据
+    :param strategy:
+    :return:
+    """
+    match_data_X, _, match_data_y, _ = get_fs_train_test_data_X_y(strategy)
+    return match_data_X, match_data_y
+
 @DeprecationWarning
 def get_match_all_data_from_hos_data(hos_id):
     """
