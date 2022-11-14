@@ -1,9 +1,8 @@
 #!/bin/sh
-sleep 5h
 all_hos=(73 167)
 #all_hos=(73)
 #comps_list=(0.7 0.8 0.9 0.95 0.99)
-comps_list=(0.7 0.9 0.99)
+comps_list=(0.9)
 for comp in ${comps_list[@]}
 do
   for hos_id in ${all_hos[@]}

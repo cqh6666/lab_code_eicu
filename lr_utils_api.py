@@ -26,11 +26,13 @@ version = 10 新数据后的权重 xgb 加了类权重
 version = 11 新数据后的权重 lr 加了类权重
 version = 12 新数据后的权重 xgb 不加类权重
 version = 13 新数据后的权重 lr 不加类权重
+version = 14 新数据后的权重 xgb 不加类权重 离散特征
+version = 15 新数据后的权重 lr 不加类权重 离散特征
 
 """
 # global_version = 10
 # hos_version = 10
-version = 12
+version = 14
 
 
 def get_init_similar_weight(hos_id):

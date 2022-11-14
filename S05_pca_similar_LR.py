@@ -110,10 +110,10 @@ def pca_reduction(train_x, test_x, similar_weight, n_comp):
     # pca降维
     pca_model = PCA(n_components=n_comp, random_state=2022)
     # 转换需要 * 相似性度量
-    new_train_data_x = pca_model.fit_transform(train_x)
-    # new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
-    # new_test_data_x = pca_model.transform(test_x * similar_weight)
-    new_test_data_x = pca_model.transform(test_x)
+    new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
+    new_test_data_x = pca_model.transform(test_x * similar_weight)
+    # new_train_data_x = pca_model.fit_transform(train_x)
+    # new_test_data_x = pca_model.transform(test_x)
     # 转成df格式
     pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
     pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
@@ -175,8 +175,11 @@ if __name__ == '__main__':
     version = 8 0.7 0.8 0.9 0.95 0.99 不用相似性度量
     version = 9 特征选择 lr
     version = 10 特征选择 xgb
+    version = 11 特征选择 lr
+    version = 12 特征选择 xgb ( 不做相似性度量）
+    version = 13 特征选择 xgb （做相似性度量）
     """
-    version = 10
+    version = 13
     # ================== save file name ====================
     program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_LR_all_result_save.csv"

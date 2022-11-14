@@ -138,9 +138,9 @@ if __name__ == '__main__':
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=2)
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=2)
 
     # ============================= save file ==================================== #
     program_name = f"S03_global_LR"
@@ -156,9 +156,11 @@ if __name__ == '__main__':
     version = 11 特征选择后的新数据 lr策略 700 0.1:0.9（LR有影响，XGB没影响）
     version = 12 特征选择后的新数据 xgb策略 不做类权重
     version = 13 特征选择后的新数据 lr策略 不做类权重
+    version = 14 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
+    version = 15 特征选择后的新数据 lr策略 不做类权重 增加离散变量
     """
     # version = 3 不做类平衡权重的AUC
-    version = 13
+    version = 14
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v" + "{}.pkl".format(version))
     transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v" + "{}.csv".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v" + "{}.csv".format(version))

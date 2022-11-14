@@ -117,12 +117,12 @@ def get_fs_train_test_data_X_y(strategy=2):
     if strategy == 1:
         # LR特征选择
         new_columns = pd.read_csv(
-            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns.csv",
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns_v2.csv",
             index_col=0).squeeze().to_list()
     elif strategy == 2:
         # XGB特征选择
         new_columns = pd.read_csv(
-            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns.csv",
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns_v2.csv",
             index_col=0).squeeze().to_list()
     else:
         raise ValueError("策略参数不存在!")
@@ -258,12 +258,12 @@ def get_fs_hos_data_X_y(hos_id, strategy=2):
     if strategy == 1:
         # LR特征选择
         new_columns = pd.read_csv(
-            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns.csv",
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_lr_columns_v2.csv",
             index_col=0).squeeze().to_list()
     elif strategy == 2:
         # XGB特征选择
         new_columns = pd.read_csv(
-            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns.csv",
+            "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/select_xgb_columns_v2.csv",
             index_col=0).squeeze().to_list()
     else:
         raise ValueError("策略参数不存在!")

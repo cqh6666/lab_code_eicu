@@ -47,7 +47,7 @@ def get_similar_rank(target_pre_data_select):
         sample_ki = similar_rank.iloc[:len_split, 0].values
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
     except Exception as err:
-        print(traceback.format_exc())
+        print(err)
         sys.exit(1)
 
     return patient_ids, sample_ki
@@ -88,7 +88,7 @@ def personalized_modeling(patient_id, pre_data_select_x):
         test_result.loc[patient_id, 'prob'] = predict_prob
         global_lock.release()
     except Exception as err:
-        print(traceback.format_exc())
+        print(err)
         sys.exit(1)
 
 
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 12
+    pool_nums = 5
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -188,8 +188,10 @@ if __name__ == '__main__':
     version = 23 lr特征选择后的数据  加类权重（LR有影响，XGB没影响）
     version = 24 xgb特征选择后的数据 不加类权重
     version = 25 lr特征选择后的数据  不加类权重
+    version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
+    version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     """
-    version = "25"
+    version = "26"
     # ================== save file name ====================
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
@@ -202,10 +204,10 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
         match_data_len = -1  # 全局就不需要这个参数了
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
         match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
@@ -215,7 +217,7 @@ if __name__ == '__main__':
 
     # 改为匹配其他中心
     if is_match_other:
-        train_data_x, _, train_data_y, _ = get_fs_hos_data_X_y(other_hos_id, strategy=1)
+        train_data_x, _, train_data_y, _ = get_fs_hos_data_X_y(other_hos_id)
         my_logger.warning(
             "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
 

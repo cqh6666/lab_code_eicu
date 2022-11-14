@@ -148,7 +148,7 @@ if __name__ == '__main__':
     run_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 3
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -181,8 +181,10 @@ if __name__ == '__main__':
     version = 7 使用正确的迁移xgb_model（全局匹配）
     version = 8 0.7 0.8 0.9 0.95 0.99
     version = 10 xgb特征选择后的新数据 0.7 0.9 0.99
+    version = 11 特征选择 lr
+    version = 12 特征选择 xgb
     """
-    version = 10
+    version = 12
     # ================== save file name ====================
     program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_XGB_all_result_save.csv"

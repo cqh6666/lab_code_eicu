@@ -181,8 +181,11 @@ if __name__ == '__main__':
     
     version = 22 xgb特征选择后的数据 
     version = 23 lr特征选择后的数据 
+    
+    version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
+    version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     """
-    version = "23"
+    version = "26"
     # ================== save file name ====================
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
@@ -195,15 +198,15 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
         match_data_len = -1  # 全局就不需要这个参数了
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
         match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_fs_match_all_data(strategy=1)
+        train_data_x, train_data_y = get_fs_match_all_data()
         my_logger.warning(
                 "匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 

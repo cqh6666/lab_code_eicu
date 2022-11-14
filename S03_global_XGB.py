@@ -29,7 +29,7 @@ def get_xgb_params(num_boost):
         'colsample_bytree': 0.7,
         'eta': 0.05,
         'objective': 'binary:logistic',
-        'nthread': -1,
+        'nthread': 10,
         'verbosity': 0,
         'seed': 2022,
         'tree_method': 'hist'
@@ -131,9 +131,9 @@ if __name__ == '__main__':
         os.makedirs(MODEL_SAVE_PATH)
 
     if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=2)
     else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=1)
+        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=2)
 
     # ============================= save file ==================================== #
     """
@@ -143,9 +143,11 @@ if __name__ == '__main__':
     version = 8 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 3
     version = 10 特征选择后的新数据 xgb策略 1386
     version = 11 特征选择后的新数据 lr策略 600
+    version = 14 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
+    version = 15 特征选择后的新数据 lr策略 不做类权重 增加离散变量
     """
     program_name = f"S03_global_XGB"
-    version = 11
+    version = 14
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
     save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))

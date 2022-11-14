@@ -417,21 +417,28 @@ def last_feature_select():
     print("对离散特征经过卡方过滤后特征数: {}".format(len(select_cat_columns)))
 
     # 方差过滤
-    select_var_columns = var_feature_select(all_data_X[select_cat_columns + con_feature], all_data_y)
-    print("对全部特征进行方差过滤后特征数: {}".format(len(select_var_columns)))
+    select_var_columns = var_feature_select(all_data_X[con_feature], all_data_y)
+    print("对连续特征进行方差过滤后特征数: {}".format(len(select_var_columns)))
 
+    # 保存离散特征
+    pd.DataFrame({"cat_feature": select_cat_columns}).to_csv(os.path.join(save_path, "select_cat_columns_v2.csv"))
+
+    # 离散+连续特征
+    select_columns = select_cat_columns + select_var_columns
     # todo 相关性过滤 - 互信息过滤
 
     # 嵌入法过滤
     # 基于XGB特征重要性
-    select_xgb_columns = xgb_feature_select(all_data_X[select_var_columns], all_data_y, 0)
+    select_xgb_columns = xgb_feature_select(all_data_X[select_columns], all_data_y, 0)
     print("根据XGB重要性过滤后特征数: {}".format(len(select_xgb_columns)))
-    pd.DataFrame({"feature": select_xgb_columns}).to_csv(os.path.join(save_path, "select_xgb_columns.csv"))
+    select_columns_list = list(set(select_cat_columns) | set(select_xgb_columns))
+    pd.DataFrame({"feature": select_columns_list}).to_csv(os.path.join(save_path, "select_xgb_columns_v2.csv"))
 
     # 基于LR特征重要性
-    select_lr_columns = lr_feature_select(all_data_X[select_var_columns], all_data_y)
+    select_lr_columns = lr_feature_select(all_data_X[select_columns], all_data_y)
     print("根据LR重要性过滤后特征数: {}".format(len(select_lr_columns)))
-    pd.DataFrame({"feature": select_lr_columns}).to_csv(os.path.join(save_path, "select_lr_columns.csv"))
+    select_columns_list = list(set(select_cat_columns) | set(select_lr_columns))
+    pd.DataFrame({"feature": select_columns_list}).to_csv(os.path.join(save_path, "select_lr_columns_v2.csv"))
 
     # 进行性能评估
     feature_select_valid(select_xgb_columns, select_str="xgb特征重要性")
