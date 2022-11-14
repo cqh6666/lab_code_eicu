@@ -13,19 +13,20 @@
 __author__ = 'cqh'
 
 import os
+import queue
 import sys
 import threading
 import time
 import traceback
 import warnings
-from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED, FIRST_EXCEPTION
 import xgboost as xgb
 
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
-    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_match_all_data
+    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists
 from email_api import send_success_mail, get_run_time
 from my_logger import MyLog
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
@@ -102,15 +103,46 @@ def print_result_info():
     my_logger.info(f"auc score: {score}")
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
-    start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, run_end_time)
+    start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, time.time())
     save_df.loc[program_name + "_" + str(int(run_start_time)), :] = [start_time_date, end_time_date, run_date_time,
                                                                      score]
     save_to_csv_by_row(save_result_file, save_df)
 
     # 发送邮箱
-    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=run_end_time)
+    send_success_mail(program_name, run_start_time=run_start_time, run_end_time=time.time())
     print("end!")
 
+
+def multi_thread_personal_modeling():
+    """
+    多线程跑程序
+    :return:
+    """
+    my_logger.warning("starting personalized modelling...")
+
+    s_t = time.time()
+    # 匹配相似样本（从训练集） 建模 多线程
+    with ThreadPoolExecutor(max_workers=pool_nums) as executor:
+        thread_list = []
+        for test_id in test_id_list:
+            pre_data_select = test_data_x.loc[[test_id]]
+            thread = executor.submit(personalized_modeling, test_id, pre_data_select)
+            thread_list.append(thread)
+
+        # 若出现第一个错误, 反向逐个取消任务并终止
+        wait(thread_list, return_when=FIRST_EXCEPTION)
+        for cur_thread in reversed(thread_list):
+            cur_thread.cancel()
+
+        wait(thread_list, return_when=ALL_COMPLETED)
+
+    # 若出现异常直接返回
+    if not exec_queue.empty():
+        my_logger.error("something task error... we have to stop!!!")
+        return
+
+    run_end_time = time.time()
+    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
 if __name__ == '__main__':
 
@@ -187,12 +219,11 @@ if __name__ == '__main__':
     """
     version = "26"
     # ================== save file name ====================
+    save_path = f"./result/S04/{hos_id}/"
+    create_path_if_not_exists(save_path)
+
     program_name = f"S04_XGB_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_XGB_result_save.csv"
-    save_path = f"./result/S04/{hos_id}/"
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-        my_logger.warning("create new dirs... {}".format(save_path))
     test_result_file_name = os.path.join(
         save_path, f"S04_XGB_test_tra{is_transfer}_boost{xgb_boost_num}_select{select}_v{version}.csv")
     # =====================================================
@@ -231,30 +262,18 @@ if __name__ == '__main__':
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
     my_logger.warning(
         f"[params] - version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
         f"index_range:[{start_idx}, {end_idx}]")
+    my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
 
     test_id_list = test_data_x.index.values
-
     test_result = pd.DataFrame(index=test_id_list, columns=['real', 'prob'])
     test_result['real'] = test_data_y
-
-    global_lock = threading.Lock()
-    my_logger.warning("starting ...")
-
-    s_t = time.time()
-    # 匹配相似样本（从训练集） XGB建模 多线程
-    with ThreadPoolExecutor(max_workers=pool_nums) as executor:
-        thread_list = []
-        for test_id in test_id_list:
-            pre_data_select = test_data_x.loc[[test_id]]
-            thread = executor.submit(personalized_modeling, test_id, pre_data_select)
-            thread_list.append(thread)
-        wait(thread_list, return_when=ALL_COMPLETED)
-
-    run_end_time = time.time()
-    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
+    # ===================================== 任务开始 ==========================================
+    # 多线程用到的全局锁, 异常消息队列
+    global_lock, exec_queue = threading.Lock(), queue.Queue()
+    # 开始跑程序
+    multi_thread_personal_modeling()
 
     print_result_info()

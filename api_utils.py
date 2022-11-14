@@ -350,6 +350,15 @@ def save_to_csv_by_row(csv_file, new_df):
     return True
 
 
+def create_path_if_not_exists(new_path):
+    if not os.path.exists(new_path):
+        try:
+            os.makedirs(new_path)
+            print("create new dirs... {}".format(new_path))
+        except Exception as err:
+            pass
+
+
 if __name__ == '__main__':
     # data = get_all_norm_data()
     # all_data_x, t_data_x, all_data_y, t_data_y = get_all_data_X_y()
