@@ -445,14 +445,41 @@ def last_feature_select():
     feature_select_valid(select_lr_columns, select_str="lr特征重要性")
 
 
+def last_feature_select2():
+    """
+    最终的特征选择方案 - 只根据XGB或LR特征重要性 进行筛选
+    :return:
+    """
+    # 获取数据X,y
+    all_data_X, all_data_y = get_data_X_y()
+
+    # 嵌入法过滤
+    # 基于XGB特征重要性
+    select_xgb_columns = xgb_feature_select(all_data_X, all_data_y, 0)
+    print("根据XGB重要性过滤后特征数: {}".format(len(select_xgb_columns)))
+    pd.DataFrame({"feature": select_xgb_columns}).to_csv(os.path.join(save_path, f"select_xgb_columns_v{version}.csv"))
+
+    # 基于LR特征重要性
+    select_lr_columns = lr_feature_select(all_data_X, all_data_y)
+    print("根据LR重要性过滤后特征数: {}".format(len(select_lr_columns)))
+    pd.DataFrame({"feature": select_lr_columns}).to_csv(os.path.join(save_path, f"select_lr_columns_v{version}.csv"))
+
+    # 进行性能评估
+    feature_select_valid(select_xgb_columns, select_str="xgb特征重要性")
+    feature_select_valid(select_lr_columns, select_str="lr特征重要性")
+
 
 if __name__ == '__main__':
     my_logger = MyLog().logger
 
+    """
+    version = 3 只进行XGB或LR特征重要性选择特征
+    """
+    version = 3
     y_label = "aki_label"
     hospital_id = "hospitalid"
     patient_id = "index"
     data_path = "/home/chenqinhai/code_eicu/my_lab/data/raw_file"
     save_path = "/home/chenqinhai/code_eicu/my_lab/result/S02/feature_importance/"
     # run()
-    last_feature_select()
+    last_feature_select2()

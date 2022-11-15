@@ -2,7 +2,7 @@
 #source xxx.sh
 #all_hos=(0)
 all_hos=(73 167)
-version=14
+version=16
 #all_hos=(73)
 for hos_id in ${all_hos[@]}
 do

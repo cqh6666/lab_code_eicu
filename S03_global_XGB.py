@@ -13,7 +13,7 @@ from sklearn.metrics import roc_auc_score
 import pickle
 import os
 
-from api_utils import get_fs_train_test_data_X_y,get_fs_hos_data_X_y
+from api_utils import get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_each_hos_data_X_y
 import time
 
 from email_api import send_success_mail
@@ -130,11 +130,10 @@ if __name__ == '__main__':
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
-    if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y(strategy=2)
-    else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id, strategy=2)
+    # 获取数据
+    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
 
+    print(train_data_x.shape)
     # ============================= save file ==================================== #
     """
     version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样） 

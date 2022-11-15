@@ -27,7 +27,7 @@ from sklearn.metrics import roc_auc_score
 
 from my_logger import MyLog
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y, \
-    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, create_path_if_not_exists
+    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, create_path_if_not_exists, get_fs_each_hos_data_X_y
 from email_api import send_success_mail, get_run_time
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_init_similar_weight
 
@@ -193,10 +193,8 @@ def get_my_data():
     读取数据和处理数据
     :return:
     """
-    if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
-    else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
+    # 获取数据
+    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
     # final_idx = test_data_x.shape[0]
     # end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
     final_idx = test_data_x.shape[0]
@@ -214,7 +212,7 @@ if __name__ == '__main__':
     program_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 6
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -245,8 +243,10 @@ if __name__ == '__main__':
     version = 10 xgb特征选择后的新数据 0.7 0.9 0.99
     version = 11 特征选择 lr
     version = 12 特征选择 xgb
+    version = 14 特征选择 xgb重要性 （做相似性度量）
+
     """
-    version = 12
+    version = 14
     # ================== save file name ====================
     save_path = f"./result/S05/{hos_id}/"
     create_path_if_not_exists(save_path)

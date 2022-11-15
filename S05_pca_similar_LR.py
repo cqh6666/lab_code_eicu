@@ -26,7 +26,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_fs_train_test_data_X_y, get_fs_hos_data_X_y, \
-    create_path_if_not_exists
+    create_path_if_not_exists, get_fs_each_hos_data_X_y, get_sensitive_columns
 from email_api import send_success_mail, get_run_time
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from my_logger import MyLog
@@ -195,10 +195,8 @@ def get_my_data():
     读取数据和处理数据
     :return:
     """
-    if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
-    else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
+    # 获取数据
+    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
     # final_idx = test_data_x.shape[0]
     # end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
     final_idx = test_data_x.shape[0]
@@ -209,6 +207,23 @@ def get_my_data():
     my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
 
     return train_data_x, test_data_x, train_data_y, test_data_y
+
+
+def process_sensitive_feature_weight(init_similar_weight_):
+    """
+    将敏感特征权重设为0
+    :param init_similar_weight_:
+    :return:
+    """
+    sens_cols = get_sensitive_columns()
+    columns_name = train_data_x.columns.to_list()
+    psm_df = pd.Series(index=columns_name, data=init_similar_weight_)
+
+    psm_df[psm_df.index.isin(sens_cols)] = 0
+
+    my_logger.warning("已将{}个敏感特征权重设置为0...".format(len(sens_cols)))
+
+    return psm_df.to_list()
 
 
 if __name__ == '__main__':
@@ -246,8 +261,10 @@ if __name__ == '__main__':
     version = 12 特征选择 xgb重要性 ( 不做相似性度量）
     version = 13 特征选择 lr重要性 （做相似性度量）
     version = 14 特征选择 xgb重要性 （做相似性度量）
+    version = 16 直接xgb特征选择 xgb重要性 （做相似性度量） 
+    version = 17 直接xgb特征选择 xgb重要性 （做相似性度量） 将敏感特征权重设为0
     """
-    version = 14
+    version = 17
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{hos_id}/"
@@ -273,6 +290,9 @@ if __name__ == '__main__':
     if is_transfer == 1:
         transfer_train_data_X = train_data_x * global_feature_weight
         transfer_test_data_X = test_data_x * global_feature_weight
+
+    # 将敏感特征的权重设为0，使得匹配完全没用上
+    init_similar_weight = process_sensitive_feature_weight(init_similar_weight)
 
     # PCA降维
     pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)

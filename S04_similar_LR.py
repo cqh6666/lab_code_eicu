@@ -16,7 +16,6 @@ import os
 import queue
 import sys
 import time
-import traceback
 import warnings
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED, FIRST_EXCEPTION
@@ -25,8 +24,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, get_fs_train_test_data_X_y, \
-    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists
+from api_utils import covert_time_format, save_to_csv_by_row,  \
+    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from email_api import send_success_mail, get_run_time
 from my_logger import MyLog
@@ -48,8 +47,9 @@ def get_similar_rank(target_pre_data_select):
         sample_ki = similar_rank.iloc[:len_split, 0].values
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
     except Exception as err:
-        print(err)
-        sys.exit(1)
+        exec_queue.put("Termination")
+        my_logger.exception(err)
+        raise Exception(err)
 
     return patient_ids, sample_ki
 
@@ -72,6 +72,10 @@ def personalized_modeling(patient_id, pre_data_select_x):
     pre_data_select - dataframe
     :return: 最终的相似样本
     """
+    # 如果消息队列中消息不为空，说明已经有任务异常了
+    if not exec_queue.empty():
+        return
+
     try:
         patient_ids, sample_ki = get_similar_rank(pre_data_select_x)
 
@@ -82,8 +86,9 @@ def personalized_modeling(patient_id, pre_data_select_x):
         test_result.loc[patient_id, 'prob'] = predict_prob
         global_lock.release()
     except Exception as err:
-        print(err)
-        sys.exit(1)
+        exec_queue.put("Termination")
+        my_logger.exception(err)
+        raise Exception(err)
 
 
 def fit_train_test_data(patient_ids, pre_data_select_x):
@@ -155,7 +160,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 5
+    pool_nums = 15
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -227,8 +232,9 @@ if __name__ == '__main__':
     version = 25 lr特征选择后的数据  不加类权重
     version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
+    version = 28 直接xgb特征选择后的数据  不加类权重
     """
-    version = "26"
+    version = "28"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -239,12 +245,8 @@ if __name__ == '__main__':
         save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
-    if hos_id == 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_train_test_data_X_y()
-        match_data_len = -1  # 全局就不需要这个参数了
-    else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y(hos_id)
-        match_data_len = int(select_ratio * train_data_x.shape[0])
+    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
@@ -259,7 +261,7 @@ if __name__ == '__main__':
 
     # 是否等样本量匹配
     if is_train_same:
-        assert not hos_id == 0 & match_data_len == -1, "训练全局数据不需要等样本匹配"
+        assert not hos_id == 0, "训练全局数据不需要等样本匹配"
         len_split = match_data_len
     else:
         len_split = int(select_ratio * train_data_x.shape[0])
@@ -285,6 +287,7 @@ if __name__ == '__main__':
 
     # 提前计算迁移后的训练集和测试集
     if is_transfer == 1:
+        my_logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
         transfer_train_data_X = train_data_x * global_feature_weight
         transfer_test_data_X = test_data_x * global_feature_weight
 
