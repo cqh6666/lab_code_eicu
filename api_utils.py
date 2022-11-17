@@ -413,4 +413,4 @@ if __name__ == '__main__':
 
     # res1 = get_fs_train_test_data_X_y(strategy=1)
     # res2 = get_fs_train_test_data_X_y(strategy=2)
-    cols = get_sensitive_columns()
+    cols = get_qid_columns()

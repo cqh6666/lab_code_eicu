@@ -156,7 +156,7 @@ if __name__ == '__main__':
     version = 13 特征选择后的新数据 lr策略 不做类权重
     version = 14 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
     version = 15 特征选择后的新数据 lr策略 不做类权重 增加离散变量
-    version = 16 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
+    version = 16 特征选择后的新数据 直接xgb策略 不做类权重 增加离散变量
     """
     # version = 3 不做类平衡权重的AUC
     version = 16

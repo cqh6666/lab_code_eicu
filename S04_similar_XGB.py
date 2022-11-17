@@ -41,6 +41,8 @@ def get_similar_rank(pre_data_select):
     :param pre_data_select:
     :return:
     """
+
+
     try:
         similar_rank = pd.DataFrame(index=train_data_x.index)
         similar_rank['distance'] = abs((train_data_x - pre_data_select.values) * init_similar_weight).sum(axis=1)
@@ -52,7 +54,9 @@ def get_similar_rank(pre_data_select):
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
 
     except Exception as err:
-        raise err
+        exec_queue.put("Termination")
+        my_logger.exception(err)
+        raise Exception(err)
 
     return patient_ids, sample_ki
 
@@ -77,9 +81,11 @@ def personalized_modeling(test_id, pre_data_select):
     pre_data_select - dataframe
     :return: 最终的相似样本
     """
-    patient_ids, sample_ki = get_similar_rank(pre_data_select)
-
+    # 如果消息队列中消息不为空，说明已经有任务异常了
+    if not exec_queue.empty():
+        return
     try:
+        patient_ids, sample_ki = get_similar_rank(pre_data_select)
         fit_train_x = train_data_x.loc[patient_ids]
         fit_train_y = train_data_y.loc[patient_ids]
 
@@ -89,8 +95,9 @@ def personalized_modeling(test_id, pre_data_select):
         test_result.loc[test_id, 'prob'] = predict_prob
         global_lock.release()
     except Exception as err:
-        print(traceback.format_exc())
-        sys.exit(1)
+        exec_queue.put("Termination")
+        my_logger.exception(err)
+        raise Exception(err)
 
 
 def print_result_info():
@@ -144,6 +151,7 @@ def multi_thread_personal_modeling():
 
     run_end_time = time.time()
     my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
+
 
 if __name__ == '__main__':
 
@@ -217,8 +225,10 @@ if __name__ == '__main__':
     
     version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
+    
+    version = 28 直接xgb特征选择后的数据  不加类权重
     """
-    version = "26"
+    version = "28"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)

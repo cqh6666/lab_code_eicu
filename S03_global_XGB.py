@@ -144,9 +144,10 @@ if __name__ == '__main__':
     version = 11 特征选择后的新数据 lr策略 600
     version = 14 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
     version = 15 特征选择后的新数据 lr策略 不做类权重 增加离散变量
+    version = 16 特征选择后的新数据 直接xgb策略 不做类权重 增加离散变量
     """
     program_name = f"S03_global_XGB"
-    version = 14
+    version = 16
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
     save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))

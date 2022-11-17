@@ -22,12 +22,14 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED, FIRST_EX
 import xgboost as xgb
 
 import pandas as pd
+from numpy.random import laplace
 from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 
 from my_logger import MyLog
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, get_train_test_data_X_y, \
-    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, create_path_if_not_exists, get_fs_each_hos_data_X_y
+    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, create_path_if_not_exists, get_fs_each_hos_data_X_y, \
+    get_sensitive_columns, get_qid_columns
 from email_api import send_success_mail, get_run_time
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_init_similar_weight
 
@@ -207,12 +209,95 @@ def get_my_data():
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
+def process_sensitive_feature_weight(init_similar_weight_):
+    """
+    将敏感特征权重设为0
+    :param init_similar_weight_:
+    :return:
+    """
+    sens_cols = get_sensitive_columns()
+    columns_name = train_data_x.columns.to_list()
+    psm_df = pd.Series(index=columns_name, data=init_similar_weight_)
+
+    psm_df[psm_df.index.isin(sens_cols)] = 0
+
+    my_logger.warning("已将{}个敏感特征权重设置为0...".format(len(sens_cols)))
+
+    return psm_df.to_list()
+
+
+def process_qid_feature_weight(init_similar_weight_):
+    """
+    将qid特征权重设为0
+    :param init_similar_weight_:
+    :return:
+    """
+    sens_cols = get_qid_columns()
+    columns_name = train_data_x.columns.to_list()
+    psm_df = pd.Series(index=columns_name, data=init_similar_weight_)
+
+    psm_df[psm_df.index.isin(sens_cols)] = 0
+
+    my_logger.warning("已将{}个准标识符特征权重设置为0...".format(len(sens_cols)))
+
+    return psm_df.to_list()
+
+
+def add_qid_laplace_noise(test_data_x_, is_qid, μ=0, b=1.0):
+    """
+    为qid特征增加拉普拉斯噪声
+    :param is_qid:
+    :param test_data_x_:
+    :param μ:
+    :param b:
+    :return:
+    """
+    if is_qid:
+        qid_cols = get_qid_columns()
+    else:
+        qid_cols = get_sensitive_columns()
+
+    patient_ids = test_data_x_.index
+
+    for patient_id in patient_ids:
+        laplace_noise = laplace(μ, b, len(qid_cols))  # 为原始数据添加μ为0，b为1的噪声
+        for index, col in enumerate(qid_cols):
+            test_data_x_.loc[patient_id, col] += laplace_noise[index]
+
+    my_logger.warning("将准标识符特征({})进行拉普拉斯噪声处理...".format(len(qid_cols)))
+
+    return test_data_x_
+
+
+def concat_most_sensitive_feature_weight(similar_weight, concat_nums=5):
+    """
+    将敏感度最高的几个特征进行合并
+    :param similar_weight:
+    :param concat_nums:
+    :return:
+    """
+    # 选出前k个敏感度最高的特征
+    sensitive_feature = get_sensitive_columns()
+    sensitive_data_x = test_data_x[sensitive_feature]
+    top_sens_feature = sensitive_data_x.sum(axis=0).sort_values(ascending=False).index.to_list()[:concat_nums]
+
+    # 构建series
+    columns_name = train_data_x.columns.to_list()
+    psm_df = pd.Series(index=columns_name, data=similar_weight)
+
+    # 均值化
+    mean_weight = psm_df[psm_df.index.isin(top_sens_feature)].mean()
+    psm_df[psm_df.index.isin(top_sens_feature)] = mean_weight
+
+    return psm_df.to_list()
+
+
 if __name__ == '__main__':
 
     program_start_time = time.time()
     my_logger = MyLog().logger
 
-    pool_nums = 6
+    pool_nums = 5
     xgb_boost_num = 50
     xgb_thread_num = 1
 
@@ -228,6 +313,8 @@ if __name__ == '__main__':
     select_ratio = select * 0.01
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
+
+    concat_nums = 20
 
     # 获取xgb_model和初始度量  是否全局匹配
     xgb_model = get_xgb_model_pkl(hos_id) if is_transfer == 1 else None
@@ -245,14 +332,23 @@ if __name__ == '__main__':
     version = 12 特征选择 xgb
     version = 14 特征选择 xgb重要性 （做相似性度量）
 
+    version = 16 直接xgb特征选择 xgb重要性 （做相似性度量） 
+    
+    version = 17 直接xgb特征选择 xgb重要性 （做相似性度量） 将敏感特征权重设为0
+    version = 18 直接xgb特征选择 xgb重要性 （做相似性度量） 将准标识符特征权重设为0
+    version = 19 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯 b=0.5
+    version = 20 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯 b=0.5
+    version = 21 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯 b=1
+    version = 22 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯 b=1
+    version = 23 直接xgb特征选择 xgb重要性 （做相似性度量） 将concat_nums权重均值化 5 10 15 20
     """
-    version = 14
+    version = 23
     # ================== save file name ====================
     save_path = f"./result/S05/{hos_id}/"
     create_path_if_not_exists(save_path)
 
     # 文件名相关
-    program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
+    program_name = f"S05_XGB_id{hos_id}_tra{is_transfer}_comp{n_components_str}_concat{concat_nums}_v{version}"
     save_result_file = f"./result/S05_hosid{hos_id}_XGB_all_result_save.csv"
     test_result_file_name = os.path.join(
         save_path, f"S05_XGB_test_tra{is_transfer}_boost{num_boost_round}_comp{n_components_str}_v{version}.csv")
@@ -260,6 +356,18 @@ if __name__ == '__main__':
 
     # 读取数据
     train_data_x, test_data_x, train_data_y, test_data_y = get_my_data()
+
+    # 将权重设为0， 使得匹配完全没用上
+    # init_similar_weight = process_sensitive_feature_weight(init_similar_weight)
+
+    # 将权重设为0， 使得匹配完全没用上
+    # init_similar_weight = process_qid_feature_weight(init_similar_weight)
+
+    # 拉普拉斯噪声 True qid  False sens
+    # test_data_x = add_qid_laplace_noise(test_data_x, False, μ=0, b=0.5)
+
+    # 将多个敏感特征进行合并
+    init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
 
     # PCA降维
     pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
