@@ -390,8 +390,6 @@ def get_qid_columns(strategy=2, select_rate=0.1):
         # demo
         if col.startswith("gender") or col.startswith("race"):
             qid_demo.append(col)
-        elif col.startswith("med"):
-            qid_meds.append(col)
         elif col.startswith("px"):
             qid_px.append(col)
 

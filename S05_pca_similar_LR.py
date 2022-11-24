@@ -310,7 +310,7 @@ if __name__ == '__main__':
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     global_feature_weight = get_transfer_weight(hos_id)
-    init_similar_weight = get_init_similar_weight(hos_id)
+    init_similar_weight = get_init_similar_weight(0)
     """
     version = 1
     version = 2 不分批测试
@@ -334,8 +334,10 @@ if __name__ == '__main__':
     version = 21 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯 b=0.5
     version = 22 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯 b=0.5
     version = 23 直接xgb特征选择 xgb重要性 （做相似性度量） 将concat_nums权重均值化 5 10 15 20
+    
+    version = 24 直接xgb特征选择 xgb重要性 （做相似性度量） 使用全局相似性度量
     """
-    version = 23
+    version = 24
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{hos_id}/"
@@ -372,7 +374,7 @@ if __name__ == '__main__':
     # test_data_x = add_laplace_noise(test_data_x, μ=0, b=0.5)
 
     # 将多个敏感特征进行合并
-    init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
+    # init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
 
     # PCA降维
     pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)

@@ -47,7 +47,7 @@ def process_weight(before_pca_weight):
     weight_list = []
     for weight in before_pca_weight:
         if weight == 0:
-            weight_list.append(0.1)
+            weight_list.append(0.00000001)
         else:
             weight_list.append(weight)
 
@@ -63,34 +63,34 @@ def get_pca_diff_weight():
     res_diff_df = pd.DataFrame(index=columns)
 
     before_pca_weight = get_init_similar_weight(hos_id)
+    weight_df = pd.DataFrame(data={"weight": before_pca_weight}, index=test_data_x.columns)
 
     res_diff_df['before_pca'] = before_pca_weight
 
     # 用了pca后复原的权重 不用权重
-    pca_model = PCA(n_components=0.999, random_state=2022)
-    new_train_data_x = pca_model.fit_transform(train_data_x)
-    inverse_train_data_x = pca_model.inverse_transform(new_train_data_x)
-    lr_all = LogisticRegression(max_iter=1000, solver="liblinear")
-    lr_all.fit(inverse_train_data_x, train_data_y)
-    weight_importance = lr_all.coef_[0]
-    weight_importance = [abs(i) for i in weight_importance]
-    normalize_weight_importance = [i / sum(weight_importance) for i in weight_importance]
-    res_diff_df['inverse_pca_no_psm'] = normalize_weight_importance
+    # pca_model = PCA(n_components=0.99, random_state=2022)
+    # fit_test_data_x = pca_model.fit_transform(test_data_x)
+    # inverse_train_data_x = pca_model.inverse_transform(fit_test_data_x)
+    # inverse_train_data_x_df = pd.DataFrame(data=inverse_train_data_x, index=test_data_x.index, columns=test_data_x.columns)
 
     # 用了pca后复原的权重 用权重
     pca_model = PCA(n_components=0.999, random_state=2022)
-    new_train_data_temp = train_data_x * before_pca_weight
-    new_train_data_x = pca_model.fit_transform(new_train_data_temp)
-    inverse_train_data_x = pca_model.inverse_transform(new_train_data_x)
-    lr_all = LogisticRegression(max_iter=1000, solver="liblinear")
+    tran_test_data_x = test_data_x * before_pca_weight
+    fit_tran_test_data_x = pca_model.fit_transform(tran_test_data_x)
+    inverse_train_data_x = pca_model.inverse_transform(fit_tran_test_data_x)
 
-    new_pca_weight = process_weight(before_pca_weight)
-    inverse_train_data_x_ori = inverse_train_data_x / new_pca_weight
-    lr_all.fit(inverse_train_data_x_ori, train_data_y)
-    weight_importance = lr_all.coef_[0]
-    weight_importance = [abs(i) for i in weight_importance]
-    normalize_weight_importance = [i / sum(weight_importance) for i in weight_importance]
-    res_diff_df['inverse_pca_psm'] = normalize_weight_importance
+    # 比较方差
+    test_data_var = test_data_x.var()
+    tran_test_data_var = tran_test_data_x.var()
+    var_df = pd.DataFrame(index=test_data_x.columns)
+    var_df['test_data_var'] = test_data_var
+    var_df['tran_test_data_var'] = tran_test_data_var
+    var_df['weight'] = weight_df['weight']
+
+    # new_pca_weight = process_weight(before_pca_weight)
+    # inverse_train_data_x_ori = inverse_train_data_x / new_pca_weight
+    inverse_train_data_x_ori_df = pd.DataFrame(data=inverse_train_data_x, index=test_data_x.index, columns=test_data_x.columns)
+
     return res_diff_df
 
 
