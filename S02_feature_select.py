@@ -14,20 +14,17 @@ __author__ = 'cqh'
 
 import feather
 import pandas as pd
-from sklearn.metrics import roc_auc_score, recall_score
-from sklearn.model_selection import cross_val_score
+from sklearn.metrics import roc_auc_score
 
 from api_utils import get_all_norm_data, get_train_test_data_X_y
-from sklearn.feature_selection import SelectFromModel
 from sklearn.linear_model import LogisticRegression
-from sklearn.linear_model import Lasso
 from my_logger import MyLog
 import numpy as np
 import os
 from sklearn.feature_selection import chi2, f_classif, VarianceThreshold
 from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
-from kydavra import MUSESelector, ChiSquaredSelector, PValueSelector, PearsonCorrelationSelector, PCAFilter, \
+from kydavra import ChiSquaredSelector, PearsonCorrelationSelector,  \
     M3USelector, SpearmanCorrelationSelector, KendallCorrelationSelector
 
 
@@ -164,7 +161,7 @@ def rf_feature_select(data_X, data_y, topK=500):
     feature_importance = pd.DataFrame(feature_importance, columns=['importance'])
     feature_importance['name'] = data_X.columns
     rank_K = feature_importance.sort_values(by='importance', ascending=False)[:topK]
-    rank_K.to_csv(os.path.join(save_path, "rf_fi.csv"))
+    rank_K.to_csv(os.path.join(save_path, f"rf_fi_v{version}.csv"))
 
     return rank_K['name'].to_list()
 
@@ -229,6 +226,7 @@ def pearson_feature_select(all_data):
     method = PearsonCorrelationSelector()
     select_columns = method.select(all_data, y_label)
     return select_columns
+
 
 def get_data_X_y():
     """X,y"""
@@ -455,11 +453,13 @@ def last_feature_select2():
 
     # 嵌入法过滤
     # 基于XGB特征重要性
+    print("start xgb feature select...")
     select_xgb_columns = xgb_feature_select(all_data_X, all_data_y, 0)
     print("根据XGB重要性过滤后特征数: {}".format(len(select_xgb_columns)))
     pd.DataFrame({"feature": select_xgb_columns}).to_csv(os.path.join(save_path, f"select_xgb_columns_v{version}.csv"))
 
     # 基于LR特征重要性
+    print("start lr feature select...")
     select_lr_columns = lr_feature_select(all_data_X, all_data_y)
     print("根据LR重要性过滤后特征数: {}".format(len(select_lr_columns)))
     pd.DataFrame({"feature": select_lr_columns}).to_csv(os.path.join(save_path, f"select_lr_columns_v{version}.csv"))
@@ -474,8 +474,9 @@ if __name__ == '__main__':
 
     """
     version = 3 只进行XGB或LR特征重要性选择特征
+    version = 5 新处理 11.25
     """
-    version = 3
+    version = 5
     y_label = "aki_label"
     hospital_id = "hospitalid"
     patient_id = "index"

@@ -29,11 +29,11 @@ version = 13 新数据后的权重 lr 不加类权重
 version = 14 新数据后的权重 xgb 不加类权重 离散特征 1420
 version = 15 新数据后的权重 lr 不加类权重 离散特征
 version = 16 直接xgb特征选择，不做卡方和反差检测  1600
-
+version = 20 新数据预处理
 """
 # global_version = 10
 # hos_version = 10
-version = 16
+version = 20
 
 
 def get_init_similar_weight(hos_id):

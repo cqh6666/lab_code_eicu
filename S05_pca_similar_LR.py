@@ -310,7 +310,7 @@ if __name__ == '__main__':
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     global_feature_weight = get_transfer_weight(hos_id)
-    init_similar_weight = get_init_similar_weight(0)
+    init_similar_weight = get_init_similar_weight(hos_id)
     """
     version = 1
     version = 2 不分批测试
@@ -336,8 +336,9 @@ if __name__ == '__main__':
     version = 23 直接xgb特征选择 xgb重要性 （做相似性度量） 将concat_nums权重均值化 5 10 15 20
     
     version = 24 直接xgb特征选择 xgb重要性 （做相似性度量） 使用全局相似性度量
+    version = 25 新数据 直接xgb特征选择 xgb重要性 （做相似性度量） 
     """
-    version = 24
+    version = 25
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{hos_id}/"

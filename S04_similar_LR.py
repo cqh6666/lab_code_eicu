@@ -233,8 +233,11 @@ if __name__ == '__main__':
     version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     version = 28 直接xgb特征选择后的数据  不加类权重
+    
+    version = 30 新数据处理 运行
+    
     """
-    version = "28"
+    version = "30"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)

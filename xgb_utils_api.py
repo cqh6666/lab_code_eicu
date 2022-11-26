@@ -26,7 +26,7 @@ version = 7 类权重参数
 version = 10 xgb特征选择新数据
 version = 11 lr特征选择新数据
 """
-version = 16
+version = 20
 
 
 def get_xgb_model_pkl(hos_id):

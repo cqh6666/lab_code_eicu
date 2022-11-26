@@ -16,23 +16,21 @@ import random
 
 import numpy as np
 import os
-import time
 import feather
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file"
-all_data_file_name = "all_data_df_v1.feather"
-# all_data_norm_file_name = "all_data_df_norm_v2.feather"
-all_data_norm_file_name = "all_data_df_norm_v1.feather"
-hos_data_norm_file_name = "all_data_df_norm_{}_v1.feather"
+version = 5
+TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/processeed_csv_result/"
+all_data_file_name = f"all_data_df_v{version}.feather"
+all_data_norm_file_name = f"all_data_df_norm_v{version}.feather"
+hos_data_norm_file_name = "all_data_df_norm_{}_v" + f"{version}.feather"
 y_label = "aki_label"
 hospital_id = "hospitalid"
 patient_id = "index"
 random_state = 2022
-
-feature_select_version = 3
+feature_select_version = 5
 
 
 def get_continue_feature():
@@ -43,17 +41,22 @@ def get_continue_feature():
     return pd.read_csv(os.path.join(TRAIN_PATH, "continue_feature.csv")).iloc[:, 0].tolist()
 
 
-def get_top5_hospital():
+def get_topK_hospital(k=5):
     """
     获取前5个多的医院id
     :return:
     """
-    return [73, 167, 264, 420, 338]
+    all_data = get_all_norm_data()
+    hospital_ids = all_data[hospital_id].value_counts(ascending=False).index.to_list()
+    print("The count of hospital is {}".format(len(hospital_ids)))
+    return hospital_ids[:k]
 
 
 def get_all_data():
     data_file = os.path.join(TRAIN_PATH, all_data_file_name)
     all_data = pd.read_feather(data_file)
+    # 过滤掉18岁以下的病人
+    all_data = all_data.query("age >= 18")
     print("load all_data", all_data.shape)
     return all_data
 
@@ -61,6 +64,7 @@ def get_all_data():
 def get_all_norm_data():
     data_file = os.path.join(TRAIN_PATH, all_data_norm_file_name)
     all_data = pd.read_feather(data_file)
+
     print("load all_data", all_data.shape)
     return all_data
 
@@ -88,10 +92,10 @@ def get_train_test_data_X_y():
     获取训练集测试集
     :return:
     """
-    train_X_file = os.path.join(TRAIN_PATH, "all_data_df_norm_train_X_v1.feather")
-    test_X_file = os.path.join(TRAIN_PATH, "all_data_df_norm_test_X_v1.feather")
-    train_y_file = os.path.join(TRAIN_PATH, "all_data_df_norm_train_y_v1.feather")
-    test_y_file = os.path.join(TRAIN_PATH, "all_data_df_norm_test_y_v1.feather")
+    train_X_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_train_X_v{version}.feather")
+    test_X_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_test_X_v{version}.feather")
+    train_y_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_train_y_v{version}.feather")
+    test_y_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_test_y_v{version}.feather")
 
     # 不存在文件就分割数据
     if not os.path.exists(test_y_file):
@@ -190,7 +194,7 @@ def get_match_all_data_from_hos_data(hos_id):
     # 2. 获取当下hos_id数据的 测试集 patient_id
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
     hos_data = pd.read_feather(data_file)
-    hos_data_x = hos_data.drop(["level_0", y_label], axis=1)
+    hos_data_x = hos_data.drop([y_label], axis=1)
     hos_data_y = hos_data[y_label]
     _, test_data_x, _, _ = train_test_split(hos_data_x, hos_data_y, test_size=0.3,
                                             random_state=random_state)
@@ -209,7 +213,7 @@ def get_match_all_data_from_hos_data(hos_id):
 def get_hos_test_data_id(hos_id):
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
     all_data = pd.read_feather(data_file)
-    all_data_x = all_data.drop(["level_0", y_label], axis=1)
+    all_data_x = all_data.drop([y_label], axis=1)
     all_data_y = all_data[y_label]
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
@@ -226,11 +230,35 @@ def get_hos_data_X_y(hos_id):
     all_data = pd.read_feather(data_file)
     all_data.index = all_data[patient_id].tolist()
     print("load hosp_data", hos_id, all_data.shape)
-    all_data_x = all_data.drop(["level_0", y_label, patient_id], axis=1)
+    all_data_x = all_data.drop([y_label, patient_id], axis=1)
     all_data_y = all_data[y_label]
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
     return train_data_x, test_data_x, train_data_y, test_data_y
+
+
+def get_hos_data_X_y_from_all(hos_id):
+    """
+    从所有数据中获取数据X,y
+    :param hos_id:
+    :return:
+    """
+    all_data = get_all_norm_data()
+    # 增加病人ID索引
+    all_data.index = all_data[patient_id].tolist()
+
+    cur_data = all_data[all_data[hospital_id] == hos_id]
+    # 不去除hos_id
+    cur_data_x = cur_data.drop([y_label, patient_id], axis=1)
+    cur_data_y = cur_data[y_label]
+
+    return train_test_split(cur_data_x, cur_data_y, test_size=0.3, random_state=random_state)
+
+
+def get_fs_hos_data_X_y_from_all(hos_id, strategy=2):
+    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y_from_all(hos_id)
+    new_columns = get_feature_select_columns(strategy=strategy, columns_version=feature_select_version)
+    return train_data_x[new_columns], test_data_x[new_columns], train_data_y, test_data_y
 
 
 def get_feature_select_columns(columns_version, strategy=2):
@@ -368,37 +396,49 @@ def get_sensitive_columns(strategy=2):
     :return:
     """
     cur_columns = get_feature_select_columns(columns_version=feature_select_version, strategy=strategy)
-    sens_cols = []
-    for col in cur_columns:
-        if col.startswith("ccs"):
-            sens_cols.append(col)
+    cur_columns_set = set(cur_columns)
+    # 肺结核, 冠心病, 神经病, 急性呼吸衰竭, 肾失调， 精神创伤
+    sens_ccs = ['ccs_122', 'ccs_172', 'ccs_148', 'ccs_242', "ccs_42", "ccs_139"]
+    # 他克莫司（Tacrolimus）免疫抑制剂, 异丙酚（Propofol） 镇定剂
+    sens_med = ['med_1388', "med_1172", "med_121"]
+    # 神经病治疗, 肾衰竭传染性疾病
+    sens_px = ['px_242', "px_534", "px_10"]
 
+    sens_cols = sens_ccs + sens_med + sens_px
+    for col in sens_cols:
+        if col not in cur_columns_set:
+            raise ValueError("当前特征列表不存在准标识符-{}".format(col))
     return sens_cols
 
 
-def get_qid_columns(strategy=2, select_rate=0.1):
+def get_qid_columns(strategy=2):
     """
     获取准标识符特征
     :return:
     """
     cur_columns = get_feature_select_columns(columns_version=feature_select_version, strategy=strategy)
-    qid_meds = []
-    qid_px = []
+    cur_columns_set = set(cur_columns)
+
+    # 糖原代谢病, 休克/低血压, 胸痛, 高血压
+    qid_ccs = ['ccs_10', 'ccs_13', 'ccs_199', 'ccs_214']
+    # 肠胃手术, 高血压手术，胰岛素注射
+    qid_px = ["px_596", "px_92", "px_497", "px_471"]
+    # bmi
     qid_vital = ["bmi"]
-    qid_demo = ["age"]
-    for col in cur_columns:
-        # demo
-        if col.startswith("gender") or col.startswith("race"):
-            qid_demo.append(col)
-        elif col.startswith("px"):
-            qid_px.append(col)
+    # age, gender, race
+    #
+    qid_demo = ["age", "gender_Female", "gender_Male", "race_Asian", "race_Caucasian", "race_African American",
+                "race_Other/Unknown", "race_Hispanic"]
 
-    # 随机选取10%的特征
-    random.seed(random_state)
-    select_meds = random.sample(qid_meds, int(len(qid_meds) * select_rate))
-    select_px = random.sample(qid_px, int(len(qid_px) * select_rate))
+    qid_cols = qid_demo + qid_vital + qid_px + qid_ccs
 
-    return qid_demo + qid_vital + select_px + select_meds
+    for col in qid_cols:
+        if col not in cur_columns_set:
+            print("移除", col)
+            qid_cols.remove(col)
+            # raise ValueError("当前特征列表不存在准标识符-{}".format(col))
+
+    return qid_cols
 
 
 
@@ -409,6 +449,6 @@ if __name__ == '__main__':
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
 
-    # res1 = get_fs_train_test_data_X_y(strategy=1)
+    res1 = get_all_norm_data()
     # res2 = get_fs_train_test_data_X_y(strategy=2)
-    cols = get_qid_columns()
+    # get_topK_hospital()

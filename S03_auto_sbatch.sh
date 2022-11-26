@@ -1,6 +1,6 @@
 #!/bin/sh
 #source xxx.sh
-all_hos=(0)
+all_hos=(0 73 167 264)
 #all_hos=(264)
 #all_hos=(73 167)
 version=16

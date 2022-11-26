@@ -341,8 +341,10 @@ if __name__ == '__main__':
     version = 21 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯 b=1
     version = 22 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯 b=1
     version = 23 直接xgb特征选择 xgb重要性 （做相似性度量） 将concat_nums权重均值化 5 10 15 20
+    
+    version = 25 新数据 直接xgb特征选择 xgb重要性 （做相似性度量） 
     """
-    version = 23
+    version = 25
     # ================== save file name ====================
     save_path = f"./result/S05/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -367,7 +369,7 @@ if __name__ == '__main__':
     # test_data_x = add_qid_laplace_noise(test_data_x, False, μ=0, b=0.5)
 
     # 将多个敏感特征进行合并
-    init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
+    # init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
 
     # PCA降维
     pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
