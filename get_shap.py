@@ -14,7 +14,7 @@ __author__ = 'cqh'
 import shap
 import pandas as pd
 import os
-from api_utils import get_all_data_X_y, get_hos_data_X_y, get_top5_hospital
+from api_utils import get_fs_each_hos_data_X_y, get_topK_hospital
 from xgb_utils_api import get_xgb_model_pkl
 
 
@@ -28,9 +28,9 @@ def get_shap_value(train_x, model):
     return res
 
 
-def get_top10_shap(shap_weight):
+def get_topk_shap(shap_weight, topK=100):
     shap_weight.sort_values(ascending=False, inplace=True)
-    return shap_weight.iloc[:10]
+    return shap_weight.iloc[:topK]
 
 
 if __name__ == '__main__':
@@ -40,7 +40,6 @@ if __name__ == '__main__':
 
     glo_tl_boost_num = 1000
     # hos_id = 0
-    hos_id_list = get_top5_hospital()
 
     DATA_FILE = "/home/chenqinhai/code_eicu/my_lab/data/train_file/"
     lab_dict = pd.read_csv(os.path.join(DATA_FILE, "lab_feature_dict.csv"), index_col=0)
@@ -53,9 +52,13 @@ if __name__ == '__main__':
     css_list = css_dict.index.tolist()
     px_list = px_dict.index.tolist()
 
+    topK = 100
+    hos_id_list = get_topK_hospital(3)
+    hos_id_list.append(0)
+
     for hos_id in hos_id_list:
         # get train data
-        train_x, _, _, _ = get_hos_data_X_y(hos_id)
+        train_x, _, _, _ = get_fs_each_hos_data_X_y(hos_id)
         # get xgb model
         xgb_model = get_xgb_model_pkl(hos_id=hos_id)
 
@@ -68,10 +71,19 @@ if __name__ == '__main__':
         print(f"save success! - {shap_file_name}")
 
         # get top k
-        res_df = pd.DataFrame(get_top10_shap(shap_weight), columns=['value'])
+        res_df = pd.DataFrame(get_topk_shap(shap_weight), columns=['value'])
         res_index = res_df.index.tolist()
         for cur_index in res_index:
-            if cur_index in lab_list or cur_index in med_list or cur_index in css_list or cur_index in px_list:
+            if cur_index in lab_list:
                 res_df.loc[cur_index, "feature_name"] = lab_dict.loc[cur_index, "origin_column"]
+            elif cur_index in med_list:
+                res_df.loc[cur_index, "feature_name"] = med_dict.loc[cur_index, "origin_column"]
+            elif cur_index in css_list:
+                res_df.loc[cur_index, "feature_name"] = css_dict.loc[cur_index, "origin_column"]
+            elif cur_index in px_list:
+                res_df.loc[cur_index, "feature_name"] = px_dict.loc[cur_index, "origin_column"]
+            else:
+                print(cur_index, "出现异常...")
+                continue
 
-        res_df.to_csv(os.path.join(TRAIN_PATH, f"shap_hosid{hos_id}_boost{glo_tl_boost_num}_top10.csv"))
+        res_df.to_csv(os.path.join(TRAIN_PATH, f"shap_hosid{hos_id}_boost{glo_tl_boost_num}_{topK}.csv"))

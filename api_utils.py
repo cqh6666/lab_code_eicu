@@ -55,9 +55,14 @@ def get_topK_hospital(k=5):
 def get_all_data():
     data_file = os.path.join(TRAIN_PATH, all_data_file_name)
     all_data = pd.read_feather(data_file)
+
     # 过滤掉18岁以下的病人
     all_data = all_data.query("age >= 18")
     print("load all_data", all_data.shape)
+
+    # 将bmi值变为2位有效数字
+    # all_data['bmi'] = round(all_data['bmi'], 0)
+
     return all_data
 
 
@@ -297,9 +302,13 @@ def get_fs_each_hos_data_X_y(hos_id, strategy=2):
     :return:
     """
     if hos_id == 0:
-        return get_fs_train_test_data_X_y(strategy)
+        res_df = get_fs_train_test_data_X_y(strategy)
+        print("after feature select", res_df[0].shape)
+        return res_df
     else:
-        return get_fs_hos_data_X_y(hos_id, strategy)
+        res_df = get_fs_hos_data_X_y(hos_id, strategy)
+        print("after feature select", res_df[0].shape)
+        return res_df
 
 
 def get_target_test_id(hos_id):
@@ -397,17 +406,17 @@ def get_sensitive_columns(strategy=2):
     """
     cur_columns = get_feature_select_columns(columns_version=feature_select_version, strategy=strategy)
     cur_columns_set = set(cur_columns)
-    # 肺结核, 冠心病, 神经病, 急性呼吸衰竭, 肾失调， 精神创伤
-    sens_ccs = ['ccs_122', 'ccs_172', 'ccs_148', 'ccs_242', "ccs_42", "ccs_139"]
+    # 肺结核, 冠心病, 神经病, 急性呼吸衰竭, 肾失调， 精神创伤， 传染病，
+    sens_ccs = ['ccs_122', 'ccs_172', 'ccs_148', 'ccs_242', "ccs_42", "ccs_139", "ccs_229"]
     # 他克莫司（Tacrolimus）免疫抑制剂, 异丙酚（Propofol） 镇定剂
     sens_med = ['med_1388', "med_1172", "med_121"]
     # 神经病治疗, 肾衰竭传染性疾病
-    sens_px = ['px_242', "px_534", "px_10"]
+    sens_px = ['px_242', "px_534", "px_10", "px_238", "px_20"]
 
     sens_cols = sens_ccs + sens_med + sens_px
     for col in sens_cols:
         if col not in cur_columns_set:
-            raise ValueError("当前特征列表不存在准标识符-{}".format(col))
+            raise ValueError("当前特征列表不存在此敏感特征-{}".format(col))
     return sens_cols
 
 
@@ -441,7 +450,6 @@ def get_qid_columns(strategy=2):
     return qid_cols
 
 
-
 if __name__ == '__main__':
     # data = get_all_norm_data()
     # all_data_x, t_data_x, all_data_y, t_data_y = get_all_data_X_y()
@@ -449,6 +457,10 @@ if __name__ == '__main__':
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
 
-    res1 = get_all_norm_data()
+    res1 = get_all_data()
+
+
+
+
     # res2 = get_fs_train_test_data_X_y(strategy=2)
     # get_topK_hospital()

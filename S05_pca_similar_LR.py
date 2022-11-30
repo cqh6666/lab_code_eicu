@@ -337,6 +337,7 @@ if __name__ == '__main__':
     
     version = 24 直接xgb特征选择 xgb重要性 （做相似性度量） 使用全局相似性度量
     version = 25 新数据 直接xgb特征选择 xgb重要性 （做相似性度量） 
+    version = 26 新数据 直接xgb特征选择 xgb重要性 （不做相似性度量） 
     """
     version = 25
     # ================== save file name ====================

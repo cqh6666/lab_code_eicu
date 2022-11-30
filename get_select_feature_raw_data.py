@@ -183,7 +183,7 @@ def get_treat_data():
     for column in columns:
         isinf_df = np.isinf(treatment_df[column])
         if isinf_df.sum() > 0:
-            max_value = treatment_df.loc[~isinf_df, column].sort_values(ascending=False).max()
+            max_value = treatment_df.loc[~isinf_df, column].sort_values(ascending=False).tempMax()
             treatment_df.loc[isinf_df, column] = max_value
             print("process inf value", column, isinf_df.sum())
 

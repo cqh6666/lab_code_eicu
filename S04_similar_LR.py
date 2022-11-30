@@ -173,11 +173,11 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = hos_id  # 初始相似性度量
+    init_psm_id = other_hos_id  # 初始相似性度量
     is_train_same = False  # 训练样本数是否等样本量
     is_match_all = False  # 是否匹配全局样本
 
-    is_match_other = False  # 是否匹配其他中心样本
+    is_match_other = True  # 是否匹配其他中心样本
 
     if is_match_all:
         transfer_id = 0
@@ -234,10 +234,10 @@ if __name__ == '__main__':
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     version = 28 直接xgb特征选择后的数据  不加类权重
     
-    version = 30 新数据处理 运行
-    
+    version = 30 新数据处理 对于73中心的测试样本，使用73的相似性度量和迁移做个性化建模
+    version = 31 新数据处理 对于73中心的测试样本，使用167的相似性度量和迁移做个性化建模
     """
-    version = "30"
+    version = "31"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -258,7 +258,7 @@ if __name__ == '__main__':
 
     # 改为匹配其他中心
     if is_match_other:
-        train_data_x, _, train_data_y, _ = get_fs_hos_data_X_y(other_hos_id)
+        train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(other_hos_id)
         my_logger.warning(
             "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
 

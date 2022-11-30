@@ -120,7 +120,7 @@ if __name__ == '__main__':
     version = 1 均值填充 lab没均值填充
     version = 2 中位数填充
     version = 3 均值填充 lab 均值填充
-    version = 5 中值填充 lab 0填充 bmi异常值处理
+    version = 5 中值填充 lab 0填充 bmi异常值处理，压缩范围处理
     """
     concat_file = os.path.join(save_path, f"all_data_df_v{version}.feather")
     normalize_file = os.path.join(save_path, f"all_data_df_norm_v{version}.feather")

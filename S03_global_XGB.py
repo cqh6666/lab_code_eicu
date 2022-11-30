@@ -145,6 +145,7 @@ if __name__ == '__main__':
     version = 14 特征选择后的新数据 xgb策略 不做类权重 增加离散变量
     version = 15 特征选择后的新数据 lr策略 不做类权重 增加离散变量
     version = 16 特征选择后的新数据 直接xgb策略 不做类权重 增加离散变量
+    
     version = 20 新数据
     """
     program_name = f"S03_global_XGB"

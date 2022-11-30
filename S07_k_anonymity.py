@@ -91,13 +91,17 @@ def select_columns(all_columns, qid_rate=0.04, sens_rate=0.01):
 def all_identify_risk():
     hos_ids = get_topK_hospital(50)
 
-    res_df = pd.DataFrame(index=hos_ids, columns=['all'])
+    res_df = pd.DataFrame(columns=['all'])
 
-    for hos_id in hos_ids:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y_from_all(hos_id)
-        prob = identify_risk(train_data_x, qid_cols=qid_columns)
-        res_df.loc[hos_id, "all"] = prob
-        print(hos_id, "all", prob)
+    for hod_idx in range(0, len(hos_ids), 2):
+        train_data_x, _, _, _ = get_fs_hos_data_X_y_from_all(hos_ids[hod_idx])
+        train_data_x2, _, _, _ = get_fs_hos_data_X_y_from_all(hos_ids[hod_idx + 1])
+        train_data = pd.concat([train_data_x, train_data_x2], axis=0)
+        print(f"hos{hos_ids[hod_idx]}_{hos_ids[hod_idx + 1]}", train_data.shape)
+
+        prob = identify_risk(train_data, qid_cols=qid_columns)
+        res_df.loc[f"hos{hos_ids[hod_idx]}_{hos_ids[hod_idx + 1]}", "all"] = prob
+        print(f"hos{hos_ids[hod_idx]}_{hos_ids[hod_idx + 1]}", "all", prob)
         print("=============================================================")
 
     res_df.to_csv(os.path.join(save_path, f"S07_all_result_train_df_v{version}.csv"))
@@ -107,24 +111,28 @@ def all_identify_risk():
 def all_random_identify_risk(hos_nums=50, len_sample=500):
     hos_ids = get_topK_hospital(hos_nums)
 
-    res_df = pd.DataFrame(index=hos_ids)
+    res_df = pd.DataFrame()
 
-    for hos_id in hos_ids:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y_from_all(hos_id)
-        if train_data_x.shape[0] < len_sample * 5:
-            print(f"当前训练集的样本不足{len_sample*5}")
+    for hod_idx in range(0, len(hos_ids), 2):
+        train_data_x, _, _, _ = get_fs_hos_data_X_y_from_all(hos_ids[hod_idx])
+        train_data_x2, _, _, _ = get_fs_hos_data_X_y_from_all(hos_ids[hod_idx + 1])
+        train_data = pd.concat([train_data_x, train_data_x2], axis=0)
+        cur_name = f"hos{hos_ids[hod_idx]}_{hos_ids[hod_idx + 1]}"
+
+        print(cur_name, train_data.shape)
+
+        if train_data.shape[0] < len_sample:
             break
 
-        sub_data_x = train_data_x.sample(n=len_sample * 5)
-
-        for idx in range(0, len_sample * 5, len_sample):
-            temp_data_x = sub_data_x.iloc[idx:idx + len_sample, :]
+        for idx in range(0, 5):
+            temp_data_x = train_data.sample(n=len_sample)
             prob_temp = identify_risk(temp_data_x, qid_cols=qid_columns)
-            res_df.loc[hos_id, "random_"+str(idx // len_sample)] = prob_temp
+            res_df.loc[cur_name, "random_" + str(idx)] = prob_temp
 
-        res_df.loc[hos_id, "median"] = res_df.loc[hos_id, :].median()
+        res_df.loc[cur_name, "median"] = res_df.loc[cur_name, :].median()
 
-        print(hos_id, "done!")
+        print(cur_name, res_df.loc[cur_name, "median"], "done!")
+        print("====================================================")
     res_df.to_csv(os.path.join(save_path, f"S07_all_random_{len_sample}_result_train_df_v{version}.csv"))
     print("done!")
 
@@ -143,6 +151,7 @@ def all_each_identify_risk():
 
     res_cols = list(qid_split.keys()) + ["all"]
     res_df = pd.DataFrame(index=hos_ids, columns=res_cols)
+
     for hos_index, hos_id in enumerate(hos_ids):
         train_data_x, test_data_x, train_data_y, test_data_y = get_fs_hos_data_X_y_from_all(hos_id)
         # 是否有效
@@ -173,9 +182,9 @@ def all_each_identify_risk():
 if __name__ == '__main__':
     save_path = "/home/chenqinhai/code_eicu/my_lab/result/S07"
     create_path_if_not_exists(save_path)
-    version = 3
-    qid_columns.remove("bmi")
+    version = 6
+
     # all_identify_risk()
-    sample_list = [500, 400, 600]
+    sample_list = [1000, 1500]
     for sample_cur in sample_list:
         all_random_identify_risk(len_sample=sample_cur)
