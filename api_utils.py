@@ -416,9 +416,28 @@ def get_sensitive_columns(strategy=2):
     sens_cols = sens_ccs + sens_med + sens_px
     for col in sens_cols:
         if col not in cur_columns_set:
-            raise ValueError("当前特征列表不存在此敏感特征-{}".format(col))
+            sens_cols.remove(col)
+            print("当前特征列表不存在此敏感特征-{}, 已删除...".format(col))
+
     return sens_cols
 
+
+def get_diff_sens():
+    """
+    获取不同类型的敏感特征
+    :return:
+    """
+    sens_cols = get_sensitive_columns()
+    # 连续特征和离散特征
+    con_cols, cat_cols = [], []
+
+    for col in sens_cols:
+        if col.startswith("px") or col.startswith("med"):
+            con_cols.append(col)
+        elif col.startswith("ccs"):
+            cat_cols.append(col)
+
+    return con_cols, cat_cols
 
 def get_qid_columns(strategy=2):
     """
