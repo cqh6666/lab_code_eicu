@@ -120,10 +120,10 @@ def pca_reduction(train_x, test_x, similar_weight, n_comp):
     # pca降维
     pca_model = PCA(n_components=n_comp, random_state=2022)
     # 转换需要 * 相似性度量
-    new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
-    new_test_data_x = pca_model.transform(test_x * similar_weight)
-    # new_train_data_x = pca_model.fit_transform(train_x)
-    # new_test_data_x = pca_model.transform(test_x)
+    # new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
+    # new_test_data_x = pca_model.transform(test_x * similar_weight)
+    new_train_data_x = pca_model.fit_transform(train_x)
+    new_test_data_x = pca_model.transform(test_x)
     # 转成df格式
     pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
     pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
@@ -197,7 +197,9 @@ def get_my_data():
     :return:
     """
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    _, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
+    train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
+
     # final_idx = test_data_x.shape[0]
     # end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
     final_idx = test_data_x.shape[0]
@@ -210,9 +212,10 @@ def get_my_data():
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
-def process_sensitive_feature_weight(init_similar_weight_):
+def process_sensitive_feature_weight(init_similar_weight_, sens_coef=0.5):
     """
     将敏感特征权重设为0
+    :param sens_coef:
     :param init_similar_weight_:
     :return:
     """
@@ -220,7 +223,7 @@ def process_sensitive_feature_weight(init_similar_weight_):
     columns_name = train_data_x.columns.to_list()
     psm_df = pd.Series(index=columns_name, data=init_similar_weight_)
 
-    psm_df[psm_df.index.isin(sens_cols)] = 0
+    psm_df[psm_df.index.isin(sens_cols)] = psm_df[psm_df.index.isin(sens_cols)] * sens_coef
 
     my_logger.warning("已将{}个敏感特征权重设置为0...".format(len(sens_cols)))
 
@@ -294,64 +297,42 @@ if __name__ == '__main__':
     program_start_time = time.time()
     my_logger = MyLog().logger
 
-    hos_id = int(sys.argv[1])
-    is_transfer = int(sys.argv[2])
-    n_components = float(sys.argv[3])
+    from_hos_id = int(sys.argv[1])
+    to_hos_id = int(sys.argv[2])
+    is_transfer = int(sys.argv[3])
+    n_components = float(sys.argv[4])
 
-    n_components_str = str(int(n_components * 100))
-    pool_nums = 8
+    n_components_str = str(n_components * 100)
+    pool_nums = 15
     start_idx = 0
     local_lr_iter = 100
     select = 10
     select_ratio = select * 0.01
     m_sample_weight = 0.01
 
-    concat_nums = 20
+    concat_nums = 25
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    global_feature_weight = get_transfer_weight(0)
-    init_similar_weight = get_init_similar_weight(0)
+    global_feature_weight = get_transfer_weight(to_hos_id)
+    init_similar_weight = get_init_similar_weight(to_hos_id)
     """
-    version = 1
-    version = 2 不分批测试
-    version = 3 不分批正式
-    version = 4 使用全局匹配
-    version = 5 500 1000 降维
-    version = 6 新版 100 500 1000
-    version = 7 0.7 0.8 0.9 0.95 0.99
-    version = 8 0.7 0.8 0.9 0.95 0.99 不用相似性度量
-    version = 9 特征选择 lr重要性
-    version = 10 特征选择 xgb重要性
-    version = 11 特征选择 lr重要性
-    version = 12 特征选择 xgb重要性 ( 不做相似性度量）
-    version = 13 特征选择 lr重要性 （做相似性度量）
-    version = 14 特征选择 xgb重要性 （做相似性度量）
-    version = 16 直接xgb特征选择 xgb重要性 （做相似性度量） 
-    version = 17 直接xgb特征选择 xgb重要性 （做相似性度量） 将敏感特征权重设为0
-    version = 18 直接xgb特征选择 xgb重要性 （做相似性度量） 将准标识符特征权重设为0
-    version = 19 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯
-    version = 20 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯
-    version = 21 直接xgb特征选择 xgb重要性 （做相似性度量） qid增加拉普拉斯 b=0.5
-    version = 22 直接xgb特征选择 xgb重要性 （做相似性度量） sens增加拉普拉斯 b=0.5
-    version = 23 直接xgb特征选择 xgb重要性 （做相似性度量） 将concat_nums权重均值化 5 10 15 20
-    
-    version = 24 直接xgb特征选择 xgb重要性 （做相似性度量） 使用全局相似性度量
-    version = 25 新数据 直接xgb特征选择 xgb重要性 （做相似性度量） 
-    version = 26 新数据 直接xgb特征选择 xgb重要性 （不做相似性度量） 
-    
-    version = 27 不做相似性度量 0.95 其他中心 
+    version = 2 不使用相似性度量
+    version = 1 使用相似性度量
+    version = 3 使用相似性度量 敏感特征*0
+    version = 4 使用相似性度量 敏感特征*0.5
+    version = 5 使用相似性度量 敏感特征增加噪声
     """
-    version = 26
+    version = 2
     # ================== save file name ====================
     # 不存在就创建
-    save_path = f"./result/S05/{hos_id}/"
+    save_path = f"./result/S05/{from_hos_id}/"
     create_path_if_not_exists(save_path)
 
     # 文件名相关
-    program_name = f"S05_LR_id{hos_id}_tra{is_transfer}_comp{n_components_str}_concat{concat_nums}_v{version}"
-    save_result_file = f"./result/S05_hosid{hos_id}_LR_all_result_save.csv"
+    program_name = f"S05_LR_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
+    save_result_file = f"./result/S05_from{from_hos_id}_to{to_hos_id}_LR_all_result_save.csv"
     test_result_file_name = os.path.join(
-        save_path, f"S05_LR_test_tra{is_transfer}_boost{local_lr_iter}_comp{n_components_str}_v{version}.csv")
+        save_path, f"S05_LR_test_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}.csv")
     # =====================================================
 
     # 输入的相关参数展示
@@ -369,7 +350,7 @@ if __name__ == '__main__':
         transfer_test_data_X = test_data_x * global_feature_weight
 
     # 将敏感特征的权重设为0，使得匹配完全没用上
-    # init_similar_weight = process_sensitive_feature_weight(init_similar_weight)
+    # init_similar_weight = process_sensitive_feature_weight(init_similar_weight, sens_coef=0.5)
 
     # 将准标识符的权重设为0， 使得匹配完全没用上
     # init_similar_weight = process_qid_feature_weight(init_similar_weight)

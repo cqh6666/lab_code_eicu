@@ -14,16 +14,61 @@ __author__ = 'cqh'
 
 import os.path
 import sys
+import threading
 
+from numpy.random import laplace
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.metrics import mean_squared_error
 
-from api_utils import get_fs_each_hos_data_X_y, get_sensitive_columns, get_diff_sens, create_path_if_not_exists
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED, FIRST_EXCEPTION
+
+from api_utils import get_fs_each_hos_data_X_y, get_sensitive_columns, create_path_if_not_exists
 from lr_utils_api import get_init_similar_weight
 from my_logger import MyLog
 import pandas as pd
 import numpy as np
+
+
+def process_sensitive_feature_weight(init_similar_weight_, columns_list, sens_coef=0.5):
+    """
+    将敏感特征权重设为0
+    :param columns_list:
+    :param sens_coef:
+    :param init_similar_weight_:
+    :return:
+    """
+    sens_cols = get_sensitive_columns()
+    columns_name = columns_list
+    psm_df = pd.Series(index=columns_name, data=init_similar_weight_)
+
+    psm_df[psm_df.index.isin(sens_cols)] = psm_df[psm_df.index.isin(sens_cols)] * sens_coef
+
+    my_logger.warning("已将{}个敏感特征权重设置为{}...".format(len(sens_cols), sens_coef))
+
+    return psm_df.to_list()
+
+
+def add_laplace_noise(test_data_x_, μ=0, b=1.0):
+    """
+    为qid特征增加拉普拉斯噪声
+    :param test_data_x_:
+    :param μ:
+    :param b:
+    :return:
+    """
+    # qid_cols = get_qid_columns()
+    qid_cols = get_sensitive_columns()
+    patient_ids = test_data_x_.index
+
+    for patient_id in patient_ids:
+        laplace_noise = laplace(μ, b, len(qid_cols))  # 为原始数据添加μ为0，b为1的噪声
+        for index, col in enumerate(qid_cols):
+            test_data_x_.loc[patient_id, col] += laplace_noise[index]
+
+    my_logger.warning("将敏感特征({})进行拉普拉斯噪声处理...".format(len(qid_cols)))
+
+    return test_data_x_
 
 
 def pca_reduction(match_data_x, target_data_x, n_comp):
@@ -130,9 +175,10 @@ def do_cal_loss_info(target_sens_true, target_sens_predict):
     return loss
 
 
-def buildRegressionModel(match_hos_train_data_x, match_hos_train_data_y, target_hos_test_data_x):
+def buildRegressionModel(cur_col, match_hos_train_data_x, match_hos_train_data_y, target_hos_test_data_x):
     """
     建立回归模型
+    :param cur_col:
     :param match_hos_train_data_x:
     :param match_hos_train_data_y:
     :param target_hos_test_data_x:
@@ -141,6 +187,9 @@ def buildRegressionModel(match_hos_train_data_x, match_hos_train_data_y, target_
     model = LinearRegression()
     model.fit(match_hos_train_data_x, match_hos_train_data_y)
     target_hos_test_data_y_predict = model.predict(target_hos_test_data_x)
+    my_logger.warning("thread_name:{}, {} 属性完成建模预测完成...".format(
+        threading.currentThread().getName(),
+        cur_col))
     return target_hos_test_data_y_predict
 
 
@@ -155,13 +204,27 @@ def do_build_model(match_hos_train_data_x, match_hos_train_data_ys, target_hos_t
     """
     # 保存结果矩阵
     result_df = pd.DataFrame(columns=sens_cols, index=target_hos_test_data_x.index)
+    with ThreadPoolExecutor(max_workers=pool_nums) as executor:
+        thread_list = []
+        for cur_col in sens_cols:
+            match_hos_train_data_y = match_hos_train_data_ys[cur_col]
 
-    for cur_col in sens_cols:
-        match_hos_train_data_y = match_hos_train_data_ys[cur_col]
-        # 建立回归模型
-        result_df[cur_col] = buildRegressionModel(match_hos_train_data_x, match_hos_train_data_y,
-                                                  target_hos_test_data_x)
-        my_logger.warning("{} 属性完成建模预测完成...".format(cur_col))
+            # 建立回归模型
+            thread_list.append(executor.submit(
+                buildRegressionModel,
+                cur_col,
+                match_hos_train_data_x,
+                match_hos_train_data_y,
+                target_hos_test_data_x
+            ))
+
+        wait(thread_list, return_when=ALL_COMPLETED)
+        for cur_col, thread in zip(sens_cols, thread_list):
+            result_df[cur_col] = thread.result()
+
+    if result_df.isna().sum().sum() > 0:
+        my_logger.error("出现并发问题...缺失某个敏感特征...")
+        raise Exception("多线程跑线程并发错误...")
 
     return result_df
 
@@ -169,6 +232,83 @@ def do_build_model(match_hos_train_data_x, match_hos_train_data_ys, target_hos_t
 def array_diff(a, b):
     # 创建数组在，且数组元素在a不在b中
     return [x for x in a if x not in b]
+
+
+def main_run_with_psm_noise(from_hos_id, to_hos_id, n_comp=0.95):
+    # 0. 获取数据, 获取度量
+    _, target_data_x, _, target_data_y = get_fs_each_hos_data_X_y(from_hos_id)
+    match_data_x, _, match_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
+    match_init_similar_weight = get_init_similar_weight(to_hos_id)
+    columns_list = match_data_x.columns.to_list()
+
+    # 0.5 可能会增加噪声
+    target_data_x = add_laplace_noise(target_data_x, μ=0, b=0.5)
+
+    # 1. PCA降维 得到 降维矩阵 （不同处理方式），然后还原数据
+    pca_match_data_x, pca_target_data_x, recover_target_data_x = pca_reduction_with_similar_weight(
+        match_data_x, target_data_x, match_init_similar_weight, n_comp
+    )
+
+    # 3. 将还原的数据的某些非敏感特征推导预测敏感特征 （X,y) LR或XGB或...
+    # 3.1 获取敏感特征集
+    sens_cols = get_sensitive_columns()
+    train_cols = array_diff(columns_list, sens_cols)
+
+    # 3.2 对每个敏感特征预测建模(训练数据暂时使用全部匹配数据）
+    # 3.3. 预测对应的敏感特征信息并生成新的矩阵
+    match_hos_train_data = match_data_x
+    match_hos_train_data_x = match_hos_train_data[train_cols]
+    match_hos_train_data_y = match_hos_train_data[sens_cols]
+    target_hos_test_data_x = recover_target_data_x[train_cols]
+    target_sens_predict = do_build_model(
+        match_hos_train_data_x, match_hos_train_data_y, target_hos_test_data_x, sens_cols
+    )
+
+    # 4. 通过损失函数计算对应的损失信息
+    target_sens_true = target_data_x[sens_cols]  # 敏感真实值
+    loss_value = do_cal_loss_info(target_sens_true, target_sens_predict)
+
+    my_logger.info("[使用相似性度量-增加噪声] - comp:{} - 计算得知当前损失值为: {}".format(comp, loss_value))
+
+    return loss_value
+
+
+def main_run_with_psm_sens_weight(from_hos_id, to_hos_id, n_comp=0.95, sens_weight=0.0):
+    # 0. 获取数据, 获取度量
+    _, target_data_x, _, target_data_y = get_fs_each_hos_data_X_y(from_hos_id)
+    match_data_x, _, match_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
+    match_init_similar_weight = get_init_similar_weight(to_hos_id)
+    columns_list = match_data_x.columns.to_list()
+
+    match_init_similar_weight = process_sensitive_feature_weight(match_init_similar_weight, columns_list, sens_coef=sens_weight)
+
+    # 1. PCA降维 得到 降维矩阵 （不同处理方式），然后还原数据
+    pca_match_data_x, pca_target_data_x, recover_target_data_x = pca_reduction_with_similar_weight(
+        match_data_x, target_data_x, match_init_similar_weight, n_comp
+    )
+
+    # 3. 将还原的数据的某些非敏感特征推导预测敏感特征 （X,y) LR或XGB或...
+    # 3.1 获取敏感特征集
+    sens_cols = get_sensitive_columns()
+    train_cols = array_diff(columns_list, sens_cols)
+
+    # 3.2 对每个敏感特征预测建模(训练数据暂时使用全部匹配数据）
+    # 3.3. 预测对应的敏感特征信息并生成新的矩阵
+    match_hos_train_data = match_data_x
+    match_hos_train_data_x = match_hos_train_data[train_cols]
+    match_hos_train_data_y = match_hos_train_data[sens_cols]
+    target_hos_test_data_x = recover_target_data_x[train_cols]
+    target_sens_predict = do_build_model(
+        match_hos_train_data_x, match_hos_train_data_y, target_hos_test_data_x, sens_cols
+    )
+
+    # 4. 通过损失函数计算对应的损失信息
+    target_sens_true = target_data_x[sens_cols]  # 敏感真实值
+    loss_value = do_cal_loss_info(target_sens_true, target_sens_predict)
+
+    my_logger.info("[使用相似性度量] - comp:{} - 计算得知当前损失值为: {}".format(comp, loss_value))
+
+    return loss_value
 
 
 def main_run_with_psm(from_hos_id, to_hos_id, n_comp):
@@ -181,6 +321,9 @@ def main_run_with_psm(from_hos_id, to_hos_id, n_comp):
     match_data_x, _, match_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
     match_init_similar_weight = get_init_similar_weight(to_hos_id)
     columns_list = match_data_x.columns.to_list()
+
+    # 0.5 可能会增加噪声
+    target_data_x = add_laplace_noise(target_data_x, μ=0, b=0.5)
 
     # 1. PCA降维 得到 降维矩阵 （不同处理方式），然后还原数据
     pca_match_data_x, pca_target_data_x, recover_target_data_x = pca_reduction_with_similar_weight(
@@ -252,10 +395,10 @@ def main_run_with_no_psm(from_hos_id, to_hos_id, n_comp):
 
 if __name__ == '__main__':
     my_logger = MyLog().logger
-    from_hos_id = 73
-    to_hos_id = 167
-    n_component = 0.95
-    comp_list = [0.9, 0.95, 0.99, 0.995, 0.999]
+    from_hospital_id = 73
+    to_hospital_id = 0
+    pool_nums = 15
+    comp_list = [0.95]
 
     save_path = f"./result/S08/"
     create_path_if_not_exists(save_path)
@@ -263,9 +406,10 @@ if __name__ == '__main__':
     all_res_df = pd.DataFrame()
 
     for comp in comp_list:
-        loss_1 = main_run_with_psm(from_hos_id, to_hos_id, n_comp=comp)
-        loss_2 = main_run_with_no_psm(from_hos_id, to_hos_id, n_comp=comp)
-        all_res_df.loc["pca_with_psm_loss-lr", comp] = loss_1
-        all_res_df.loc["pca_with_no_psm_loss-lr", comp] = loss_2
+        # all_res_df.loc["pca_with_psm_loss-lr", comp] = main_run_with_psm(from_hospital_id, to_hospital_id, n_comp=comp)
+        # all_res_df.loc["pca_with_no_psm_loss-lr", comp] = main_run_with_no_psm(from_hospital_id, to_hospital_id, n_comp=comp)
+        all_res_df.loc["pca_with_no_psm_loss-lr-noise", comp] = main_run_with_psm_noise(from_hospital_id, to_hospital_id, n_comp=comp)
+        all_res_df.loc["pca_with_no_psm_loss-lr-sw0.0", comp] = main_run_with_psm_sens_weight(from_hospital_id, to_hospital_id, n_comp=comp, sens_weight=0.0)
+        all_res_df.loc["pca_with_no_psm_loss-lr-sw0.5", comp] = main_run_with_psm_sens_weight(from_hospital_id, to_hospital_id, n_comp=comp, sens_weight=0.5)
 
-    all_res_df.to_csv(os.path.join(save_path, "S08_attack_loss_with_lr.csv"))
+    all_res_df.to_csv(os.path.join(save_path, f"S08_{from_hospital_id}_{to_hospital_id}_attack_loss3_with_lr.csv"))

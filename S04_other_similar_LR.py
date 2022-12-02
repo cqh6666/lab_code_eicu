@@ -162,8 +162,9 @@ if __name__ == '__main__':
 
     pool_nums = 15
 
-    hos_id = int(sys.argv[1])
-    is_transfer = int(sys.argv[2])
+    from_hos_id = int(sys.argv[1])
+    to_hos_id = int(sys.argv[2])
+    is_transfer = int(sys.argv[3])
 
     local_lr_iter = 100
     select = 10
@@ -171,102 +172,41 @@ if __name__ == '__main__':
     m_sample_weight = 0.01
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = 0  # 初始相似性度量
+    init_psm_id = from_hos_id  # 初始相似性度量
+    transfer_id = to_hos_id
+
     is_train_same = False  # 训练样本数是否等样本量
-    is_match_all = True  # 是否匹配全局样本
 
-    is_match_other = False  # 是否匹配其他中心样本
-
-    if is_match_all:
-        transfer_id = 0
-    else:
-        transfer_id = hos_id if not is_match_other else other_hos_id
-
-    assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
-
-    my_logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
+    my_logger.warning("pid:{}， init_psm:{}, is_train_same:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, transfer_id))
     init_similar_weight = get_init_similar_weight(init_psm_id)
     global_feature_weight = get_transfer_weight(transfer_id)
     """
-    version = 1  local_lr_iter = 100
-    version = 2  有错误重新调整
-    version = 3  压缩数据
-    version = 4 中位数填充
-    version = 5 不做类平衡权重会如何
-    version = 6 匹配全局数据 （出错了，没用全局度量）
-    version = 7 正确版本 使用全局相似性度量和全局迁移参数 平均数填充
-    version = 8 使用全局相似性度量和全局初始度量
-    version = 9 不用类平衡权重,全局
+    version = 1  匹配其他中心 相似性度量(from) 迁移(to)  使用对面的相似性度量
+    version = 2  匹配其他中心 相似性度量(from) 迁移(to)  使用自己的相似性度量
     
-    ===============================================================
-    T  代表重新进行了分割数据
-    -11 基于该中心（v5）匹配全局迁移(v7)
-    -10 基于全局（v7）匹配该中心迁移(v5)
-    -9 用0.01：0.99的类权重的初始相似度量和全局迁移 （自己不做类权重）
-    -8 用0.05：0.95的类权重的初始相似度量和全局迁移 （自己不做类权重）
-    -7 用1：9的类权重的初始相似度量和全局迁移 （自己不做类权重）
-    -6 用类权重的初始相似度量和全局迁移 （自己不做类权重）
-    -5 不用类权重的初始相似度量和全局迁移（自己不做类权重）
-    -4 用类权重的初始相似度量和全局迁移 （自己也做类权重）
-    -3 不用类权重的初始相似度量和全局迁移 （自己也做类权重）
-    ===============================================================
-    version = 10 基于该中心相似度量匹配中心10%比例  init_psm_id = hos_id, is_train_same = False, is_match_all = False
-    version = 11 基于该中心相似度量匹配全局样本10%  init_psm_id = hos_id, is_train_same = False, is_match_all = True
-    version = 12 基于全局相似度量匹配该中心10%比例  init_psm_id = 0, is_train_same = False, is_match_all = False
-    version = 13 基于该中心相似度量匹配全局样本等样本量  init_psm_id = hos_id, is_train_same = True, is_match_all = True
-    version = 14 基于全局相似度量匹配全局样本10% init_psm_id = 0, is_train_same = False, is_match_all = True
-    version = 15 基于全局相似度量匹配全局等样本（该中心） init_psm_id = 0, is_train_same = True, is_match_all = True
-    
-    version = 16 基于该中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
-    version = 17 基于该中心相似度量匹配其他中心等样本量  init_weight hos_id global_weight other_hos_id
-    version = 18 基于其他中心相似度量匹配当前中心10%  init_weight other_hos_id global_weight hos_id
-    version = 19 基于其他中心相似度量匹配其他中心10%  init_weight hos_id global_weight other_hos_id
-    version = 20 基于其他中心相似度量匹配其他中心等样本量  init_weight other_hos_id global_weight other_hos_id
-
-    version = 21 全局个性化建模 hos_id = 0
-    version = 22 xgb特征选择后的数据 加类权重（LR有影响，XGB没影响）
-    version = 23 lr特征选择后的数据  加类权重（LR有影响，XGB没影响）
-    version = 24 xgb特征选择后的数据 不加类权重
-    version = 25 lr特征选择后的数据  不加类权重
-    version = 26 xgb特征选择后的数据  不加类权重  增加离散特征
-    version = 27 lr特征选择后的数据  不加类权重  增加离散特征
-    version = 28 直接xgb特征选择后的数据  不加类权重
-    
-    version = 30 
     """
-    version = "14"
+    version = "1"
     # ================== save file name ====================
-    save_path = f"./result/S04/{hos_id}/"
+    save_path = f"./result/S04/{from_hos_id}/"
     create_path_if_not_exists(save_path)
 
-    program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
-    save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
+    program_name = f"S04_LR_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_v{version}"
+    save_result_file = f"./result/S04_id{from_hos_id}_other_LR_result_save.csv"
     test_result_file_name = os.path.join(
-        save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
+        save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_other_v{version}.csv")
     # =====================================================
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
-    match_data_len = int(select_ratio * train_data_x.shape[0])
-
-    # 改为匹配全局，修改为全部数据
-    if is_match_all:
-        train_data_x, train_data_y = get_fs_match_all_data()
-        my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
-
-    # 改为匹配其他中心
-    if is_match_other:
-        train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(other_hos_id)
-        my_logger.warning(
-            "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
+    t_x, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
+    train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
+    match_data_len = int(select_ratio * t_x.shape[0])
 
     # 是否等样本量匹配
-    if is_train_same:
-        assert not hos_id == 0, "训练全局数据不需要等样本匹配"
-        len_split = match_data_len
-    else:
-        len_split = int(select_ratio * train_data_x.shape[0])
+    # if is_train_same:
+    #     assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
+    #     len_split = match_data_len
+    # else:
+    #     len_split = int(select_ratio * train_data_x.shape[0])
 
     start_idx = 0
     final_idx = test_data_x.shape[0]
