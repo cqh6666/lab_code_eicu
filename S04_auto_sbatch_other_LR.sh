@@ -4,7 +4,7 @@ timeStamp=`date -d "$current" +%s`
 curStamp=$((timeStamp*1000+10#`date "+%N"`/1000000)) #将current转换为时间戳，精确到毫秒
 
 all_hos=(73)
-other_hos=0
+other_hos=167
 #all_hos=(0)
 for hos_id in ${all_hos[@]}
 do

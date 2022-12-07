@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     my_logger = MyLog().logger
 
-    pool_nums = 15
+    pool_nums = 20
 
     from_hos_id = int(sys.argv[1])
     to_hos_id = int(sys.argv[2])
@@ -202,11 +202,11 @@ if __name__ == '__main__':
     match_data_len = int(select_ratio * t_x.shape[0])
 
     # 是否等样本量匹配
-    # if is_train_same:
-    #     assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
-    #     len_split = match_data_len
-    # else:
-    #     len_split = int(select_ratio * train_data_x.shape[0])
+    if is_train_same:
+        assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
+        len_split = match_data_len
+    else:
+        len_split = int(select_ratio * train_data_x.shape[0])
 
     start_idx = 0
     final_idx = test_data_x.shape[0]

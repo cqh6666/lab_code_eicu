@@ -191,14 +191,19 @@ def multi_thread_personal_modeling():
     my_logger.warning(f"done - cost_time: {run_time}...")
 
 
-def get_my_data():
+def get_my_data(match_same=False):
     """
     读取数据和处理数据
     :return:
     """
     # 获取数据
-    _, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
+    t_x, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
     train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
+
+    if match_same:
+        match_len = t_x.shape[0]
+    else:
+        match_len = train_data_x.shape[0]
 
     # final_idx = test_data_x.shape[0]
     # end_idx = final_idx if end_idx > final_idx else end_idx  # 不得大过最大值
@@ -209,7 +214,7 @@ def get_my_data():
 
     my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
 
-    return train_data_x, test_data_x, train_data_y, test_data_y
+    return train_data_x, test_data_x, train_data_y, test_data_y, match_len
 
 
 def process_sensitive_feature_weight(init_similar_weight_, sens_coef=0.5):
@@ -303,7 +308,7 @@ if __name__ == '__main__':
     n_components = float(sys.argv[4])
 
     n_components_str = str(n_components * 100)
-    pool_nums = 15
+    pool_nums = 20
     start_idx = 0
     local_lr_iter = 100
     select = 10
@@ -317,22 +322,23 @@ if __name__ == '__main__':
     init_similar_weight = get_init_similar_weight(to_hos_id)
     """
     version = 2 不使用相似性度量
+    version = 2-B 不使用相似性度量, 但匹配原中心百分之10%
     version = 1 使用相似性度量
     version = 3 使用相似性度量 敏感特征*0
     version = 4 使用相似性度量 敏感特征*0.5
     version = 5 使用相似性度量 敏感特征增加噪声
     """
-    version = 2
+    version = "2-B"
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{from_hos_id}/"
     create_path_if_not_exists(save_path)
 
     # 文件名相关
-    program_name = f"S05_LR_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}"
+    program_name = f"S05_LR_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_select{select}_v{version}"
     save_result_file = f"./result/S05_from{from_hos_id}_to{to_hos_id}_LR_all_result_save.csv"
     test_result_file_name = os.path.join(
-        save_path, f"S05_LR_test_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_v{version}.csv")
+        save_path, f"S05_LR_test_from{from_hos_id}_to{to_hos_id}_tra{is_transfer}_comp{n_components_str}_select{select}_v{version}.csv")
     # =====================================================
 
     # 输入的相关参数展示
@@ -341,8 +347,8 @@ if __name__ == '__main__':
         f"max_iter:{local_lr_iter}, select:{select}, version:{version}")
 
     # 读取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_my_data()
-    len_split = int(select_ratio * train_data_x.shape[0])
+    train_data_x, test_data_x, train_data_y, test_data_y, match_data_len = get_my_data(match_same=True)
+    len_split = int(select_ratio * match_data_len)
 
     # 提前计算迁移后的训练集和测试集
     if is_transfer == 1:

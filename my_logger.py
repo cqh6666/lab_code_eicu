@@ -18,7 +18,7 @@ from time import strftime
 
 # 保存路径
 # log_file_name = f'/panfs/pfs.local/work/liu/xzhang_sta/chenqinhai/result/log_by_date/cqh_{strftime("%Y-%m-%d")}.log'
-log_file_name = f'./log/cqh_{strftime("%Y-%m-%d")}.log'
+log_file_name = f'/home/chenqinhai/code_eicu/my_lab/log/cqh_{strftime("%Y-%m-%d")}.log'
 # 设置日志格式#和时间格式
 FMT = '%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s: %(message)s'
 DATEFMT = '%Y-%m-%d %H:%M:%S'
@@ -47,6 +47,8 @@ class MyLog(object):
         console_handler.setFormatter(self.formatter)
         return console_handler
 
+
+logger = MyLog().logger
 
 if __name__ == '__main__':
     pass
