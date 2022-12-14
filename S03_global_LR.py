@@ -18,7 +18,8 @@ import sys
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, recall_score
-from api_utils import get_fs_hos_data_X_y, get_fs_train_test_data_X_y, get_fs_each_hos_data_X_y
+from api_utils import get_fs_hos_data_X_y, get_fs_train_test_data_X_y, get_fs_each_hos_data_X_y, get_hos_data_X_y, \
+    get_train_test_data_X_y
 
 import time
 import os
@@ -136,20 +137,31 @@ if __name__ == '__main__':
     run_start_time = time.time()
     global_max_iter = 1000
     hos_id = int(sys.argv[1])
-    # hos_id = 73
+    # hos_id = 0
     MODEL_SAVE_PATH = f'./result/S03/{hos_id}'
     if not os.path.exists(MODEL_SAVE_PATH):
         os.makedirs(MODEL_SAVE_PATH)
 
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
-
+    # train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    # 老版本获取
+    if hos_id != 0:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+    else:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+    other_columns = "level_0"
+    t_columns = train_data_x.columns.to_list()
+    if other_columns in t_columns:
+        train_data_x = train_data_x.drop([other_columns], axis=1)
+        test_data_x = test_data_x.drop([other_columns], axis=1)
+        print(f"remove {other_columns} columns...")
     # ============================= save file ==================================== #
     program_name = f"S03_global_LR"
     """
+    version = 1 老版本的数据
     version = 3 不做类平衡权重
     version = 4 做类平衡权重
-    version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
+    version = 5 新版本的数据 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     version = 6 重新按7:3分割数据，做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     version = 7 重新按7:3分割数据，做类平衡权重0.1：0.9
     version = 8 重新按7:3分割数据，做类平衡权重0.05：0.95
@@ -165,7 +177,7 @@ if __name__ == '__main__':
     version = 20 新处理方式 LR
     """
     # version = 3 不做类平衡权重的AUC
-    version = 20
+    version = 5
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_lr_{}_v" + "{}.pkl".format(version))
     transfer_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_global_weight_lr_{}_v" + "{}.csv".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_lr_{}_v" + "{}.csv".format(version))

@@ -30,7 +30,7 @@ from api_utils import covert_time_format, save_to_csv_by_row, get_fs_train_test_
     create_path_if_not_exists, get_fs_each_hos_data_X_y, get_sensitive_columns, get_qid_columns
 from email_api import send_success_mail, get_run_time
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
-from my_logger import MyLog
+from my_logger import logger
 
 warnings.filterwarnings('ignore')
 
@@ -51,7 +51,7 @@ def get_similar_rank(target_pre_data_select):
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
     return patient_ids, sample_ki
@@ -99,7 +99,7 @@ def personalized_modeling(patient_id, pre_data_select_x, pca_pre_data_select_x):
         global_lock.release()
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
 
@@ -113,22 +113,22 @@ def pca_reduction(train_x, test_x, similar_weight, n_comp):
     :return:
     """
     if n_comp >= 1:
-        my_logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
+        logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
         sys.exit(1)
 
-    my_logger.warning(f"starting pca by train_data...")
+    logger.warning(f"starting pca by train_data...")
     # pca降维
     pca_model = PCA(n_components=n_comp, random_state=2022)
     # 转换需要 * 相似性度量
-    # new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
-    # new_test_data_x = pca_model.transform(test_x * similar_weight)
-    new_train_data_x = pca_model.fit_transform(train_x)
-    new_test_data_x = pca_model.transform(test_x)
+    new_train_data_x = pca_model.fit_transform(train_x * similar_weight)
+    new_test_data_x = pca_model.transform(test_x * similar_weight)
+    # new_train_data_x = pca_model.fit_transform(train_x)
+    # new_test_data_x = pca_model.transform(test_x)
     # 转成df格式
     pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
     pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
 
-    my_logger.info(f"n_components: [{pca_model.n_components}, {pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}")
+    logger.info(f"n_components: [{pca_model.n_components}, {pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}")
 
     return pca_train_x, pca_test_x
 
@@ -144,7 +144,7 @@ def print_result_info():
     test_result.to_csv(test_result_file_name)
     # 计算auc性能
     score = roc_auc_score(test_result['real'], test_result['prob'])
-    my_logger.info(f"auc score: {score}")
+    logger.info(f"auc score: {score}")
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(program_start_time, time.time())
@@ -161,7 +161,7 @@ def multi_thread_personal_modeling():
     多线程跑程序
     :return:
     """
-    my_logger.warning("starting personalized modelling...")
+    logger.warning("starting personalized modelling...")
 
     mt_begin_time = time.time()
     # 匹配相似样本（从训练集） XGB建模 多线程
@@ -182,13 +182,13 @@ def multi_thread_personal_modeling():
 
     # 若出现异常直接返回
     if not exec_queue.empty():
-        my_logger.error("something task error... we have to stop!!!")
+        logger.error("something task error... we have to stop!!!")
         return
 
     mt_end_time = time.time()
 
     run_time = covert_time_format(mt_end_time - mt_begin_time)
-    my_logger.warning(f"done - cost_time: {run_time}...")
+    logger.warning(f"done - cost_time: {run_time}...")
 
 
 def get_my_data(match_same=False):
@@ -200,6 +200,7 @@ def get_my_data(match_same=False):
     t_x, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
     train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
 
+    # t_x 为 原本匹配样本的训练集
     if match_same:
         match_len = t_x.shape[0]
     else:
@@ -212,7 +213,7 @@ def get_my_data(match_same=False):
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
+    logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
 
     return train_data_x, test_data_x, train_data_y, test_data_y, match_len
 
@@ -230,7 +231,7 @@ def process_sensitive_feature_weight(init_similar_weight_, sens_coef=0.5):
 
     psm_df[psm_df.index.isin(sens_cols)] = psm_df[psm_df.index.isin(sens_cols)] * sens_coef
 
-    my_logger.warning("已将{}个敏感特征权重设置为0...".format(len(sens_cols)))
+    logger.warning("已将{}个敏感特征权重设置为0...".format(len(sens_cols)))
 
     return psm_df.to_list()
 
@@ -247,7 +248,7 @@ def process_qid_feature_weight(init_similar_weight_):
 
     psm_df[psm_df.index.isin(sens_cols)] = 0
 
-    my_logger.warning("已将{}个准标识符特征权重设置为0...".format(len(sens_cols)))
+    logger.warning("已将{}个准标识符特征权重设置为0...".format(len(sens_cols)))
 
     return psm_df.to_list()
 
@@ -269,7 +270,7 @@ def add_laplace_noise(test_data_x_, μ=0, b=1.0):
         for index, col in enumerate(qid_cols):
             test_data_x_.loc[patient_id, col] += laplace_noise[index]
 
-    my_logger.warning("将准标识符特征({})进行拉普拉斯噪声处理...".format(len(qid_cols)))
+    logger.warning("将准标识符特征({})进行拉普拉斯噪声处理...".format(len(qid_cols)))
 
     return test_data_x_
 
@@ -300,7 +301,6 @@ def concat_most_sensitive_feature_weight(similar_weight, concat_nums=5):
 if __name__ == '__main__':
 
     program_start_time = time.time()
-    my_logger = MyLog().logger
 
     from_hos_id = int(sys.argv[1])
     to_hos_id = int(sys.argv[2])
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     n_components = float(sys.argv[4])
 
     n_components_str = str(n_components * 100)
-    pool_nums = 20
+    pool_nums = 8
     start_idx = 0
     local_lr_iter = 100
     select = 10
@@ -319,16 +319,17 @@ if __name__ == '__main__':
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     global_feature_weight = get_transfer_weight(to_hos_id)
-    init_similar_weight = get_init_similar_weight(to_hos_id)
+    init_similar_weight = get_init_similar_weight(from_hos_id)
     """
     version = 2 不使用相似性度量
     version = 2-B 不使用相似性度量, 但匹配原中心百分之10%
+    version = 2-C 不使用相似性度量, 但匹配原中心百分之10% 并且 初始相似性权重设为当前中心
     version = 1 使用相似性度量
     version = 3 使用相似性度量 敏感特征*0
     version = 4 使用相似性度量 敏感特征*0.5
     version = 5 使用相似性度量 敏感特征增加噪声
     """
-    version = "2-B"
+    version = "1"
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{from_hos_id}/"
@@ -342,7 +343,7 @@ if __name__ == '__main__':
     # =====================================================
 
     # 输入的相关参数展示
-    my_logger.warning(
+    logger.warning(
         f"[params] - pid:{os.getpid()}, model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
         f"max_iter:{local_lr_iter}, select:{select}, version:{version}")
 

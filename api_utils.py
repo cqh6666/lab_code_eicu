@@ -12,17 +12,17 @@
 """
 __author__ = 'cqh'
 
-import random
-
 import numpy as np
 import os
 import feather
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from my_logger import logger
 
-version = 5
-TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/processeed_csv_result/"
+version = 1
+# TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/processeed_csv_result/"
+TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file/"
 all_data_file_name = f"all_data_df_v{version}.feather"
 all_data_norm_file_name = f"all_data_df_norm_v{version}.feather"
 hos_data_norm_file_name = "all_data_df_norm_{}_v" + f"{version}.feather"
@@ -116,6 +116,9 @@ def get_train_test_data_X_y():
     # 去除hospital_id
     all_train_data_x.drop([hospital_id], axis=1, inplace=True)
     all_test_data_x.drop([hospital_id], axis=1, inplace=True)
+
+    logger.warning(f"当前中心:0, 读取数据版本为: {version}, 维度:{all_train_data_x.shape}, 来源:{train_X_file}")
+
     return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
 
 
@@ -234,11 +237,13 @@ def get_hos_data_X_y(hos_id):
     data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos_id))
     all_data = pd.read_feather(data_file)
     all_data.index = all_data[patient_id].tolist()
-    print("load hosp_data", hos_id, all_data.shape)
     all_data_x = all_data.drop([y_label, patient_id], axis=1)
     all_data_y = all_data[y_label]
     train_data_x, test_data_x, train_data_y, test_data_y = train_test_split(all_data_x, all_data_y, test_size=0.3,
                                                                             random_state=random_state)
+
+    logger.warning(f"当前中心:{hos_id}, 读取数据版本为: {version}, 维度:{train_data_x.shape}, 来源:{data_file}")
+
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
@@ -325,24 +330,6 @@ def get_target_test_id(hos_id):
     test_data_ids_0 = test_data_y[test_data_y == 0].index[:50].values
 
     return test_data_ids_1, test_data_ids_0
-
-
-def get_top5_data():
-    """
-    获取每个中心的数据
-    :return:
-    """
-    hos_data_list = {}
-
-    hos_ids = get_top5_hospital()
-
-    for hos in hos_ids:
-        data_file = os.path.join(TRAIN_PATH, hos_data_norm_file_name.format(hos))
-        all_data = pd.read_feather(data_file)
-        hos_data_list[hos] = all_data
-        print("load hosp_data", hos, all_data.shape)
-
-    return hos_data_list
 
 
 def covert_time_format(seconds):
@@ -476,8 +463,10 @@ if __name__ == '__main__':
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
 
-    res1 = get_all_data()
-
+    # res_new = get_hos_data_X_y(73)
+    # version = 1
+    # res_old = get_hos_data_X_y(73)
+    print("done!")
 
 
 

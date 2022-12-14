@@ -24,11 +24,10 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row,  \
-    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row,  create_path_if_not_exists, get_fs_each_hos_data_X_y
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from email_api import send_success_mail, get_run_time
-from my_logger import MyLog
+from my_logger import logger
 
 warnings.filterwarnings('ignore')
 
@@ -48,7 +47,7 @@ def get_similar_rank(target_pre_data_select):
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
     return patient_ids, sample_ki
@@ -87,7 +86,7 @@ def personalized_modeling(patient_id, pre_data_select_x):
         global_lock.release()
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
 
@@ -110,7 +109,7 @@ def print_result_info():
     test_result.to_csv(test_result_file_name)
     # 计算auc性能
     score = roc_auc_score(test_result['real'], test_result['prob'])
-    my_logger.info(f"auc score: {score}")
+    logger.info(f"auc score: {score}")
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, time.time())
@@ -127,7 +126,7 @@ def multi_thread_personal_modeling():
     多线程跑程序
     :return:
     """
-    my_logger.warning("starting personalized modelling...")
+    logger.warning("starting personalized modelling...")
 
     s_t = time.time()
     # 匹配相似样本（从训练集） 建模 多线程
@@ -147,20 +146,18 @@ def multi_thread_personal_modeling():
 
     # 若出现异常直接返回
     if not exec_queue.empty():
-        my_logger.error("something task error... we have to stop!!!")
+        logger.error("something task error... we have to stop!!!")
         return
 
     run_end_time = time.time()
-    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
+    logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
 
 if __name__ == '__main__':
 
     run_start_time = time.time()
 
-    my_logger = MyLog().logger
-
-    pool_nums = 20
+    pool_nums = 5
 
     from_hos_id = int(sys.argv[1])
     to_hos_id = int(sys.argv[2])
@@ -178,15 +175,16 @@ if __name__ == '__main__':
 
     is_train_same = False  # 训练样本数是否等样本量
 
-    my_logger.warning("pid:{}， init_psm:{}, is_train_same:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, transfer_id))
+    logger.warning("pid:{}， init_psm:{}, is_train_same:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, transfer_id))
     init_similar_weight = get_init_similar_weight(init_psm_id)
     global_feature_weight = get_transfer_weight(transfer_id)
     """
     version = 1  匹配其他中心 相似性度量(from) 迁移(to)  使用对面的相似性度量
     version = 2  匹配其他中心 相似性度量(from) 迁移(to)  使用自己的相似性度量
+    version = 3  匹配其他中心 相似性度量(from) 迁移(to)  用当前中心的10%样本
     
     """
-    version = "1"
+    version = "2"
     # ================== save file name ====================
     save_path = f"./result/S04/{from_hos_id}/"
     create_path_if_not_exists(save_path)
@@ -200,13 +198,14 @@ if __name__ == '__main__':
     t_x, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
     train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
     match_data_len = int(select_ratio * t_x.shape[0])
+    len_split = match_data_len
 
-    # 是否等样本量匹配
-    if is_train_same:
-        assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
-        len_split = match_data_len
-    else:
-        len_split = int(select_ratio * train_data_x.shape[0])
+    # # 是否等样本量匹配
+    # if is_train_same:
+    #     assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
+    #     len_split = match_data_len
+    # else:
+    #     len_split = int(select_ratio * train_data_x.shape[0])
 
     start_idx = 0
     final_idx = test_data_x.shape[0]
@@ -216,10 +215,10 @@ if __name__ == '__main__':
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    my_logger.warning(f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
+    logger.warning(f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
                       f"max_iter:{local_lr_iter}, select:{select}, index_range:[{start_idx, end_idx}, "
                       f"version:{version}]")
-    my_logger.warning("load data - train_data:{}, test_data:{}, len_split:{}".
+    logger.warning("load data - train_data:{}, test_data:{}, len_split:{}".
                       format(train_data_x.shape, test_data_x.shape, len_split))
 
     # 测试集患者病人ID
@@ -229,7 +228,7 @@ if __name__ == '__main__':
 
     # 提前计算迁移后的训练集和测试集
     if is_transfer == 1:
-        my_logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
+        logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
         transfer_train_data_X = train_data_x * global_feature_weight
         transfer_test_data_X = test_data_x * global_feature_weight
 

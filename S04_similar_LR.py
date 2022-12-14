@@ -24,11 +24,12 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row,  \
-    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y
+from api_utils import covert_time_format, save_to_csv_by_row, \
+    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y, \
+    get_train_test_data_X_y, get_hos_data_X_y, get_match_all_data
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from email_api import send_success_mail, get_run_time
-from my_logger import MyLog
+from my_logger import logger
 
 warnings.filterwarnings('ignore')
 
@@ -48,7 +49,7 @@ def get_similar_rank(target_pre_data_select):
         sample_ki = [(sample_ki[0] + m_sample_weight) / (val + m_sample_weight) for val in sample_ki]
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
     return patient_ids, sample_ki
@@ -78,6 +79,7 @@ def personalized_modeling(patient_id, pre_data_select_x):
 
     try:
         patient_ids, sample_ki = get_similar_rank(pre_data_select_x)
+        # logger.info(f"[{patient_id}]: {patient_ids[:5]}")
 
         fit_train_y = train_data_y.loc[patient_ids]
         fit_test_x, fit_train_x = fit_train_test_data(patient_ids, pre_data_select_x)
@@ -87,7 +89,7 @@ def personalized_modeling(patient_id, pre_data_select_x):
         global_lock.release()
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
 
@@ -110,7 +112,7 @@ def print_result_info():
     test_result.to_csv(test_result_file_name)
     # 计算auc性能
     score = roc_auc_score(test_result['real'], test_result['prob'])
-    my_logger.info(f"auc score: {score}")
+    logger.info(f"auc score: {score}")
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, time.time())
@@ -127,7 +129,7 @@ def multi_thread_personal_modeling():
     多线程跑程序
     :return:
     """
-    my_logger.warning("starting personalized modelling...")
+    logger.warning("starting personalized modelling...")
 
     s_t = time.time()
     # 匹配相似样本（从训练集） 建模 多线程
@@ -147,20 +149,18 @@ def multi_thread_personal_modeling():
 
     # 若出现异常直接返回
     if not exec_queue.empty():
-        my_logger.error("something task error... we have to stop!!!")
+        logger.error("something task error... we have to stop!!!")
         return
 
     run_end_time = time.time()
-    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
+    logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
 
 if __name__ == '__main__':
 
     run_start_time = time.time()
 
-    my_logger = MyLog().logger
-
-    pool_nums = 15
+    pool_nums = 4
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -173,8 +173,8 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     other_hos_id = 167 if hos_id == 73 else 73
 
-    init_psm_id = 0  # 初始相似性度量
-    is_train_same = False  # 训练样本数是否等样本量
+    init_psm_id = hos_id  # 初始相似性度量
+    is_train_same = True  # 训练样本数是否等样本量
     is_match_all = True  # 是否匹配全局样本
 
     is_match_other = False  # 是否匹配其他中心样本
@@ -186,9 +186,11 @@ if __name__ == '__main__':
 
     assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
 
-    my_logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
+    logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
     init_similar_weight = get_init_similar_weight(init_psm_id)
     global_feature_weight = get_transfer_weight(transfer_id)
+    logger.warning(f"init weight: {init_similar_weight[:5]}")
+
     """
     version = 1  local_lr_iter = 100
     version = 2  有错误重新调整
@@ -234,9 +236,12 @@ if __name__ == '__main__':
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     version = 28 直接xgb特征选择后的数据  不加类权重
     
-    version = 30 
+    version = 13 B 使用新数据 v5 , 权重 v5 对应的
+    version = 13 C 使用原始数据 v1,  权重 v1
+    version = 13 D 使用原始数据 v1, 权重 v5
+    version = 13 F 使用新数据 v5, 权重 v1
     """
-    version = "14"
+    version = "13-D"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -247,19 +252,27 @@ if __name__ == '__main__':
         save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+    t_columns = train_data_x.columns.to_list()
+    # 如果存在医院ID
+    other_columns = "level_0"
+    if other_columns in t_columns:
+        train_data_x = train_data_x.drop([other_columns], axis=1)
+        test_data_x = test_data_x.drop([other_columns], axis=1)
+        logger.warning(f"remove {other_columns} columns...")
+
     match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_fs_match_all_data()
-        my_logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
+        train_data_x, train_data_y = get_match_all_data()
+        logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 
-    # 改为匹配其他中心
-    if is_match_other:
-        train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(other_hos_id)
-        my_logger.warning(
-            "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
+    # # 改为匹配其他中心
+    # if is_match_other:
+    #     train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(other_hos_id)
+    #     logger.warning(
+    #         "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
 
     # 是否等样本量匹配
     if is_train_same:
@@ -276,10 +289,10 @@ if __name__ == '__main__':
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    my_logger.warning(f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
+    logger.warning(f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
                       f"max_iter:{local_lr_iter}, select:{select}, index_range:[{start_idx, end_idx}, "
                       f"version:{version}]")
-    my_logger.warning("load data - train_data:{}, test_data:{}, len_split:{}".
+    logger.warning("load data - train_data:{}, test_data:{}, len_split:{}".
                       format(train_data_x.shape, test_data_x.shape, len_split))
 
     # 测试集患者病人ID
@@ -289,7 +302,7 @@ if __name__ == '__main__':
 
     # 提前计算迁移后的训练集和测试集
     if is_transfer == 1:
-        my_logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
+        logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
         transfer_train_data_X = train_data_x * global_feature_weight
         transfer_test_data_X = test_data_x * global_feature_weight
 

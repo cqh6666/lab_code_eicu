@@ -26,10 +26,10 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
-    get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, \
-    get_fs_each_hos_data_X_y
+    create_path_if_not_exists, get_fs_each_hos_data_X_y, get_match_all_data
 from email_api import send_success_mail, get_run_time
-from my_logger import MyLog
+
+from my_logger import logger
 from xgb_utils_api import get_xgb_model_pkl, get_local_xgb_para, get_xgb_init_similar_weight
 
 warnings.filterwarnings('ignore')
@@ -41,8 +41,6 @@ def get_similar_rank(pre_data_select):
     :param pre_data_select:
     :return:
     """
-
-
     try:
         similar_rank = pd.DataFrame(index=train_data_x.index)
         similar_rank['distance'] = abs((train_data_x - pre_data_select.values) * init_similar_weight).sum(axis=1)
@@ -55,7 +53,7 @@ def get_similar_rank(pre_data_select):
 
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
     return patient_ids, sample_ki
@@ -96,7 +94,7 @@ def personalized_modeling(test_id, pre_data_select):
         global_lock.release()
     except Exception as err:
         exec_queue.put("Termination")
-        my_logger.exception(err)
+        logger.exception(err)
         raise Exception(err)
 
 
@@ -108,7 +106,7 @@ def print_result_info():
     test_result.to_csv(test_result_file_name)
     # 计算auc性能
     score = roc_auc_score(test_result['real'], test_result['prob'])
-    my_logger.info(f"auc score: {score}")
+    logger.info(f"auc score: {score}")
     # save到全局结果集合里
     save_df = pd.DataFrame(columns=['start_time', 'end_time', 'run_time', 'auc_score_result'])
     start_time_date, end_time_date, run_date_time = get_run_time(run_start_time, time.time())
@@ -126,7 +124,7 @@ def multi_thread_personal_modeling():
     多线程跑程序
     :return:
     """
-    my_logger.warning("starting personalized modelling...")
+    logger.warning("starting personalized modelling...")
 
     s_t = time.time()
     # 匹配相似样本（从训练集） 建模 多线程
@@ -146,20 +144,17 @@ def multi_thread_personal_modeling():
 
     # 若出现异常直接返回
     if not exec_queue.empty():
-        my_logger.error("something task error... we have to stop!!!")
+        logger.error("something task error... we have to stop!!!")
         return
 
     run_end_time = time.time()
-    my_logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
+    logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
 
 if __name__ == '__main__':
 
     run_start_time = time.time()
-
-    my_logger = MyLog().logger
-
-    pool_nums = 5
+    pool_nums = 3
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -173,21 +168,17 @@ if __name__ == '__main__':
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
     params, num_boost_round = get_local_xgb_para(xgb_thread_num=xgb_thread_num, num_boost_round=xgb_boost_num)
 
-    other_hos_id = 167 if hos_id == 73 else 73
-
     init_psm_id = hos_id  # 初始相似性度量
-    is_train_same = False  # 训练样本数是否等样本量
-    is_match_all = False  # 是否匹配全局样本
-
-    is_match_other = False  # 是否匹配其他中心样本
+    is_train_same = True  # 训练样本数是否等样本量
+    is_match_all = True  # 是否匹配全局样本
 
     if is_match_all:
         transfer_id = 0
     else:
-        transfer_id = hos_id if not is_match_other else other_hos_id
+        transfer_id = hos_id
 
-    assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
-    my_logger.warning("init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(init_psm_id, is_train_same, is_match_all, transfer_id))
+    # assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
+    logger.warning("init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(init_psm_id, is_train_same, is_match_all, transfer_id))
 
     # 获取xgb_model和初始度量  是否全局匹配
     init_similar_weight = get_xgb_init_similar_weight(init_psm_id)
@@ -228,7 +219,7 @@ if __name__ == '__main__':
     
     version = 28 直接xgb特征选择后的数据  不加类权重
     """
-    version = "28"
+    version = "13-B"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -239,20 +230,22 @@ if __name__ == '__main__':
         save_path, f"S04_XGB_test_tra{is_transfer}_boost{xgb_boost_num}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+    t_columns = train_data_x.columns.to_list()
+    # 如果存在医院ID
+    other_columns = "level_0"
+    if other_columns in t_columns:
+        train_data_x = train_data_x.drop([other_columns], axis=1)
+        test_data_x = test_data_x.drop([other_columns], axis=1)
+        logger.warning(f"remove {other_columns} columns...")
+
     match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
-        train_data_x, train_data_y = get_fs_match_all_data()
-        my_logger.warning(
+        train_data_x, train_data_y = get_match_all_data()
+        logger.warning(
                 "匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
-
-    # 改为匹配其他中心
-    if is_match_other:
-        train_data_x, _, train_data_y, _ = get_hos_data_X_y(other_hos_id)
-        my_logger.warning(
-            "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
 
     # 是否等样本量匹配
     if is_train_same:
@@ -269,10 +262,10 @@ if __name__ == '__main__':
     test_data_x = test_data_x.iloc[start_idx:end_idx]
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
-    my_logger.warning(
+    logger.warning(
         f"[params] - version:{version}, transfer_flag:{transfer_flag}, pool_nums:{pool_nums}, "
         f"index_range:[{start_idx}, {end_idx}]")
-    my_logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
+    logger.warning("load data - train_data:{}, test_data:{}".format(train_data_x.shape, test_data_x.shape))
 
     test_id_list = test_data_x.index.values
     test_result = pd.DataFrame(index=test_id_list, columns=['real', 'prob'])

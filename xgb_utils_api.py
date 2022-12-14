@@ -15,29 +15,36 @@ __author__ = 'cqh'
 import pandas as pd
 import os
 import pickle
-
+from my_logger import logger
 import xgboost as xgb
 
 MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/S03/{}'
 global_xgb_boost = 1000
 """
-version = 5 不用类权重参数
+version = 1 旧版本 不用类权重
+version = 5 新版本 不用类权重参数
 version = 7 类权重参数
 version = 10 xgb特征选择新数据
 version = 11 lr特征选择新数据
 """
-version = 20
+version = 5
 
 
 def get_xgb_model_pkl(hos_id):
     xgb_model_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f"S03_global_xgb_{global_xgb_boost}_v{version}.pkl")
     xgb_model = pickle.load(open(xgb_model_file, "rb"))
+
+    logger.warning(f"读取xgb迁移模型: {xgb_model_file}, version:{version}")
+
     return xgb_model
 
 
 def get_init_similar_weight(hos_id):
     init_similar_weight_file = os.path.join(MODEL_SAVE_PATH.format(hos_id), f'S03_0_psm_global_xgb_{global_xgb_boost}_v{version}.csv')
     init_similar_weight = pd.read_csv(init_similar_weight_file).squeeze().tolist()
+
+    logger.warning(f"读取xgb相似性度量({len(init_similar_weight)}):{init_similar_weight[:5]}, version:{version}")
+
     return init_similar_weight
 
 

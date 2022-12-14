@@ -13,7 +13,8 @@ from sklearn.metrics import roc_auc_score
 import pickle
 import os
 
-from api_utils import get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_each_hos_data_X_y
+from api_utils import get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_each_hos_data_X_y, get_hos_data_X_y, \
+    get_train_test_data_X_y
 import time
 
 from email_api import send_success_mail
@@ -131,11 +132,22 @@ if __name__ == '__main__':
         os.makedirs(MODEL_SAVE_PATH)
 
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
-
+    # train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
+    # 老版本获取
+    if hos_id != 0:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
+    else:
+        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
+    other_columns = "level_0"
+    t_columns = train_data_x.columns.to_list()
+    if other_columns in t_columns:
+        train_data_x = train_data_x.drop([other_columns], axis=1)
+        test_data_x = test_data_x.drop([other_columns], axis=1)
+        print(f"remove {other_columns} columns...")
     print(train_data_x.shape)
     # ============================= save file ==================================== #
     """
+    version = 1 旧版本
     version = 5 重新按7:3分割数据，不做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样） 
     version = 6 重新按7:3分割数据，做类平衡权重（只需要做全局训练【跟之前不一样】，各中心医院数据分割和之前一样）
     version = 7 重新按7:3分割数据，做类平衡权重 scale_pos_weight = 9  0.851623899
@@ -149,7 +161,7 @@ if __name__ == '__main__':
     version = 20 新数据
     """
     program_name = f"S03_global_XGB"
-    version = 20
+    version = 1
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
     save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))
