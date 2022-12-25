@@ -26,7 +26,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, get_hos_data_X_y, \
-    create_path_if_not_exists, get_fs_each_hos_data_X_y, get_match_all_data
+    create_path_if_not_exists, get_fs_each_hos_data_X_y, get_match_all_data, get_hos_data_X_y_old
 from email_api import send_success_mail, get_run_time
 
 from my_logger import logger
@@ -154,7 +154,7 @@ def multi_thread_personal_modeling():
 if __name__ == '__main__':
 
     run_start_time = time.time()
-    pool_nums = 3
+    pool_nums = 4
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])  # 0 1
@@ -231,13 +231,6 @@ if __name__ == '__main__':
     # =====================================================
     # 获取数据
     train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
-    t_columns = train_data_x.columns.to_list()
-    # 如果存在医院ID
-    other_columns = "level_0"
-    if other_columns in t_columns:
-        train_data_x = train_data_x.drop([other_columns], axis=1)
-        test_data_x = test_data_x.drop([other_columns], axis=1)
-        logger.warning(f"remove {other_columns} columns...")
 
     match_data_len = int(select_ratio * train_data_x.shape[0])
 

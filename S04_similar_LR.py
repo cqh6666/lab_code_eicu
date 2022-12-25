@@ -26,7 +26,8 @@ from sklearn.metrics import roc_auc_score
 
 from api_utils import covert_time_format, save_to_csv_by_row, \
     get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y, \
-    get_train_test_data_X_y, get_hos_data_X_y, get_match_all_data
+    get_train_test_data_X_y, get_hos_data_X_y, get_match_all_data, get_each_hos_data_X_y, \
+    get_match_all_data_except_test_old, get_hos_data_X_y_old
 from lr_utils_api import get_transfer_weight, get_init_similar_weight
 from email_api import send_success_mail, get_run_time
 from my_logger import logger
@@ -156,11 +157,41 @@ def multi_thread_personal_modeling():
     logger.warning(f"done - cost_time: {covert_time_format(run_end_time - s_t)}...")
 
 
+def process_test_data_no_match(train_data_y, test_data_x, test_data_y):
+    """pass"""
+    data_index_set = set(train_data_y.index)
+    test_data_index = test_data_x.index
+
+    good_list = []
+
+    for index in test_data_index:
+        if index not in data_index_set:
+            good_list.append(index)
+
+    logger.warning(f"有 {len(good_list)} 个目标患者不在match数据集之中")
+    return test_data_x.loc[good_list], test_data_y.loc[good_list]
+
+
+def process_test_data_match(train_data_y, test_data_x, test_data_y):
+    """pass"""
+    data_index_set = set(train_data_y.index)
+    test_data_index = test_data_x.index
+
+    good_list = []
+
+    for index in test_data_index:
+        if index in data_index_set:
+            good_list.append(index)
+
+    logger.warning(f"有 {len(good_list)} 个目标患者在match数据集之中")
+    return test_data_x.loc[good_list], test_data_y.loc[good_list]
+
+
 if __name__ == '__main__':
 
     run_start_time = time.time()
 
-    pool_nums = 4
+    pool_nums = 8
 
     hos_id = int(sys.argv[1])
     is_transfer = int(sys.argv[2])
@@ -187,7 +218,7 @@ if __name__ == '__main__':
     assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
 
     logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
-    init_similar_weight = get_init_similar_weight(init_psm_id)
+    init_similar_weight = get_init_similar_weight(transfer_id)
     global_feature_weight = get_transfer_weight(transfer_id)
     logger.warning(f"init weight: {init_similar_weight[:5]}")
 
@@ -236,12 +267,18 @@ if __name__ == '__main__':
     version = 27 lr特征选择后的数据  不加类权重  增加离散特征
     version = 28 直接xgb特征选择后的数据  不加类权重
     
-    version = 13 B 使用新数据 v5 , 权重 v5 对应的
-    version = 13 C 使用原始数据 v1,  权重 v1
+    version = 13 B 使用新数据 v5 , 权重 v5a 对应的
+    version = 13 C 使用原始数据 v1,  权重 v1a
     version = 13 D 使用原始数据 v1, 权重 v5
-    version = 13 F 使用新数据 v5, 权重 v1
+    version = 13 E 使用新数据 v5, 权重 v5
+    version = 13 F 使用新数据 v5, 权重 v5a 匹配全部数据不进行处理(用全局相似性度量）
+    version = 13 G 使用新数据 v5, 权重 v5a 使用重复的训练集作为测试集
+    version = 13 H 使用新数据 v5, 权重 v5a 去除包含测试集的样本的匹配样本
+    version = 13 H-2 使用新数据 v5, 权重 v5a 去除包含测试集的样本的匹配样本(用全局的初始相似度量）
+    version = 13 I 使用新数据 v5, 权重 v5a 去除包含在匹配样本的测试样本  （不保留）
+    version = 13 J 使用新数据 v5, 权重 v5a 使用包含在匹配样本的测试样本  （保留）
     """
-    version = "13-D"
+    version = "13-F-2"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -252,21 +289,24 @@ if __name__ == '__main__':
         save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
-    t_columns = train_data_x.columns.to_list()
-    # 如果存在医院ID
-    other_columns = "level_0"
-    if other_columns in t_columns:
-        train_data_x = train_data_x.drop([other_columns], axis=1)
-        test_data_x = test_data_x.drop([other_columns], axis=1)
-        logger.warning(f"remove {other_columns} columns...")
+    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y_old(hos_id)
+
+    # 试试用重复的训练集会如何
+    # test_data_x = train_data_x.iloc[:1000]
+    # test_data_y = train_data_y.iloc[:1000]
 
     match_data_len = int(select_ratio * train_data_x.shape[0])
 
     # 改为匹配全局，修改为全部数据
     if is_match_all:
+        # train_data_x, train_data_y = get_match_all_data_except_test_old(hos_id)
         train_data_x, train_data_y = get_match_all_data()
         logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
+
+    # 保留 在匹配集合中存在的目标患者
+    # test_data_x, test_data_y = process_test_data_match(train_data_y, test_data_x, test_data_y)
+    # 不保留 在匹配集合中存在的目标患者
+    # test_data_x, test_data_y = process_test_data_no_match(train_data_y, test_data_x, test_data_y)
 
     # # 改为匹配其他中心
     # if is_match_other:

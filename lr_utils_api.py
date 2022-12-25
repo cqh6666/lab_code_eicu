@@ -20,7 +20,9 @@ MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/S03/{}'
 global_lr_iter = 1000
 """
 version = 1 不做类权重（老版本数据）
+version = 1a 不做类权重（老版本数据） 7：3分割
 version = 5 不做类权重（新版本数据）
+version = 5a 不做类权重（新版本数据） 7:3分割
 version = 6 做平衡类权重
 version = 7 1：9 类权重
 version = 8 0.05：0.95 类权重
@@ -37,7 +39,7 @@ version = 9 新数据的权重 不做特征选择
 """
 # global_version = 10
 # hos_version = 10
-version = 5
+version = "5a"
 
 
 def get_init_similar_weight(hos_id):

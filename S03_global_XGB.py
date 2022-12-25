@@ -14,7 +14,7 @@ import pickle
 import os
 
 from api_utils import get_fs_train_test_data_X_y, get_fs_hos_data_X_y, get_fs_each_hos_data_X_y, get_hos_data_X_y, \
-    get_train_test_data_X_y
+    get_train_test_data_X_y, get_each_hos_data_X_y
 import time
 
 from email_api import send_success_mail
@@ -133,18 +133,9 @@ if __name__ == '__main__':
 
     # 获取数据
     # train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
-    # 老版本获取
-    if hos_id != 0:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y(hos_id)
-    else:
-        train_data_x, test_data_x, train_data_y, test_data_y = get_train_test_data_X_y()
-    other_columns = "level_0"
-    t_columns = train_data_x.columns.to_list()
-    if other_columns in t_columns:
-        train_data_x = train_data_x.drop([other_columns], axis=1)
-        test_data_x = test_data_x.drop([other_columns], axis=1)
-        print(f"remove {other_columns} columns...")
-    print(train_data_x.shape)
+    # 原始数据获取
+    train_data_x, test_data_x, train_data_y, test_data_y = get_each_hos_data_X_y(hos_id)
+
     # ============================= save file ==================================== #
     """
     version = 1 旧版本
@@ -161,7 +152,7 @@ if __name__ == '__main__':
     version = 20 新数据
     """
     program_name = f"S03_global_XGB"
-    version = 1
+    version = "5a"
     model_file_name_file = os.path.join(MODEL_SAVE_PATH, "S03_global_xgb_{}_v" + "{}.pkl".format(version))
     init_psm_weight_file = os.path.join(MODEL_SAVE_PATH, "S03_0_psm_global_xgb_{}_v" + "{}.csv".format(version))
     save_result_file = os.path.join(MODEL_SAVE_PATH, "S03_auc_global_xgb_v" + "{}.csv".format(version))

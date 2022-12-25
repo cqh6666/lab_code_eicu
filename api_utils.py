@@ -20,9 +20,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from my_logger import logger
 
-version = 1
-# TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/processeed_csv_result/"
-TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file/"
+version = "5"
+
+if version == 1:
+    TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/train_file/"
+else:
+    TRAIN_PATH = "/home/chenqinhai/code_eicu/my_lab/data/processeed_csv_result/"
+
 all_data_file_name = f"all_data_df_v{version}.feather"
 all_data_norm_file_name = f"all_data_df_norm_v{version}.feather"
 hos_data_norm_file_name = "all_data_df_norm_{}_v" + f"{version}.feather"
@@ -48,7 +52,7 @@ def get_topK_hospital(k=5):
     """
     all_data = get_all_norm_data()
     hospital_ids = all_data[hospital_id].value_counts(ascending=False).index.to_list()
-    print("The count of hospital is {}".format(len(hospital_ids)))
+    logger.warning("The count of hospital is {}".format(len(hospital_ids)))
     return hospital_ids[:k]
 
 
@@ -58,7 +62,6 @@ def get_all_data():
 
     # 过滤掉18岁以下的病人
     all_data = all_data.query("age >= 18")
-    print("load all_data", all_data.shape)
 
     # 将bmi值变为2位有效数字
     # all_data['bmi'] = round(all_data['bmi'], 0)
@@ -69,8 +72,6 @@ def get_all_data():
 def get_all_norm_data():
     data_file = os.path.join(TRAIN_PATH, all_data_norm_file_name)
     all_data = pd.read_feather(data_file)
-
-    print("load all_data", all_data.shape)
     return all_data
 
 
@@ -94,32 +95,49 @@ def get_all_data_X_y():
 
 def get_train_test_data_X_y():
     """
-    获取训练集测试集
+    获取 全局 训练集测试集
+    :return:
+    """
+    all_test_data_x, all_test_data_y, all_train_data_x, all_train_data_y = load_global_dataset()
+
+    # 去除hospital_id
+    all_train_data_x.drop([hospital_id], axis=1, inplace=True)
+    all_test_data_x.drop([hospital_id], axis=1, inplace=True)
+
+    logger.warning(f"当前中心:0, 读取数据版本为: {version}, 维度:{all_train_data_x.shape}")
+
+    return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+
+
+def load_global_dataset():
+    """
+    获取全局数据集
     :return:
     """
     train_X_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_train_X_v{version}.feather")
     test_X_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_test_X_v{version}.feather")
     train_y_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_train_y_v{version}.feather")
     test_y_file = os.path.join(TRAIN_PATH, f"all_data_df_norm_test_y_v{version}.feather")
-
     # 不存在文件就分割数据
     if not os.path.exists(test_y_file):
-        print("not exist! begin split...")
+        logger.warning("not exist! begin split...")
         all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y = \
             split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file)
     else:
-        print("exist! start loading...")
+        logger.warning("exist! start loading...")
         all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y = \
             pd.read_feather(train_X_file), pd.read_feather(test_X_file), \
             pd.read_feather(train_y_file).squeeze(), pd.read_feather(test_y_file).squeeze()
 
-    # 去除hospital_id
-    all_train_data_x.drop([hospital_id], axis=1, inplace=True)
-    all_test_data_x.drop([hospital_id], axis=1, inplace=True)
+    # 去除杂鱼属性
+    other_columns = "level_0"
+    t_columns = all_train_data_x.columns.to_list()
+    if other_columns in t_columns:
+        all_train_data_x = all_train_data_x.drop([other_columns], axis=1)
+        all_test_data_x = all_test_data_x.drop([other_columns], axis=1)
+        logger.warning(f"remove {other_columns} columns...")
 
-    logger.warning(f"当前中心:0, 读取数据版本为: {version}, 维度:{all_train_data_x.shape}, 来源:{train_X_file}")
-
-    return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+    return all_test_data_x, all_test_data_y, all_train_data_x, all_train_data_y
 
 
 def split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file):
@@ -155,14 +173,14 @@ def split_train_test_data(test_X_file, test_y_file, train_X_file, train_y_file):
         all_train_data_y = pd.concat([all_train_data_y, train_data_y], axis=0)
         all_test_data_x = pd.concat([all_test_data_x, test_data_x], axis=0)
         all_test_data_y = pd.concat([all_test_data_y, test_data_y], axis=0)
-        print(hos_id, "done...")
-    print("concat success!")
+        logger.info(hos_id, "done...")
+    logger.info("concat success!")
     # save
     feather.write_dataframe(all_train_data_x, train_X_file)
     feather.write_dataframe(all_test_data_x, test_X_file)
     feather.write_dataframe(pd.DataFrame(all_train_data_y), train_y_file)
     feather.write_dataframe(pd.DataFrame(all_test_data_y), test_y_file)
-    print("save success!")
+    logger.info("save success!")
     return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
 
 
@@ -173,6 +191,7 @@ def get_match_all_data():
     :return:
     """
     match_data_X, _, match_data_y, _ = get_train_test_data_X_y()
+    logger.warning(f"可知全局匹配患者数量为 {match_data_X.shape[0]}.")
     return match_data_X, match_data_y
 
 
@@ -229,6 +248,34 @@ def get_hos_test_data_id(hos_id):
 
 
 def get_hos_data_X_y(hos_id):
+    """
+    读取某个中心的 train test X,y
+    :param hos_id:
+    :return:
+    """
+    # 读取全局中心的数据
+    all_test_data_x, all_test_data_y, all_train_data_x, all_train_data_y = load_global_dataset()
+
+    # 根据hos_id获取数据
+    test_data_hos_index = (all_test_data_x[hospital_id] == hos_id)
+    train_data_hos_index = (all_train_data_x[hospital_id] == hos_id)
+
+    all_test_data_x = all_test_data_x[test_data_hos_index]
+    all_test_data_y = all_test_data_y[test_data_hos_index]
+    all_train_data_x = all_train_data_x[train_data_hos_index]
+    all_train_data_y = all_train_data_y[train_data_hos_index]
+
+    # 去除hospital_id
+    all_train_data_x.drop([hospital_id], axis=1, inplace=True)
+    all_test_data_x.drop([hospital_id], axis=1, inplace=True)
+
+    logger.warning(f"当前中心:{hos_id}, 读取数据版本为: {version}, 维度:{all_train_data_x.shape}")
+
+    return all_train_data_x, all_test_data_x, all_train_data_y, all_test_data_y
+
+
+# @DeprecationWarning
+def get_hos_data_X_y_old(hos_id):
     """
     获取某个中心的数据Xy
     :param hos_id:
@@ -299,6 +346,20 @@ def get_fs_hos_data_X_y(hos_id, strategy=2):
     return train_data_x[new_columns], test_data_x[new_columns], train_data_y, test_data_y
 
 
+def get_each_hos_data_X_y(hos_id):
+    """
+    无论是全局还是单个中心，都调用这个函数
+    :param hos_id:
+    :return:
+    """
+    if hos_id == 0:
+        res_df = get_train_test_data_X_y()
+    else:
+        res_df = get_hos_data_X_y(hos_id)
+
+    return res_df
+
+
 def get_fs_each_hos_data_X_y(hos_id, strategy=2):
     """
     抽象成一个函数接口，无论是全局还是单个中心
@@ -308,12 +369,11 @@ def get_fs_each_hos_data_X_y(hos_id, strategy=2):
     """
     if hos_id == 0:
         res_df = get_fs_train_test_data_X_y(strategy)
-        print("after feature select", res_df[0].shape)
-        return res_df
     else:
         res_df = get_fs_hos_data_X_y(hos_id, strategy)
-        print("after feature select", res_df[0].shape)
-        return res_df
+
+    logger.warning(f"做了特征选择后:{res_df[0].shape}, strategy:{strategy}")
+    return res_df
 
 
 def get_target_test_id(hos_id):
@@ -321,11 +381,11 @@ def get_target_test_id(hos_id):
     得到50个正样本，50个负样本来进行分析
     :return:
     """
-    if hos_id == 0:
-        _, _, _, test_data_y = get_train_test_data_X_y()
-    else:
-        _, _, _, test_data_y = get_hos_data_X_y(hos_id)
-
+    # if hos_id == 0:
+    #     _, _, _, test_data_y = get_train_test_data_X_y()
+    # else:
+    #     _, _, _, test_data_y = get_hos_data_X_y(hos_id)
+    _, _, _, test_data_y = get_fs_each_hos_data_X_y(hos_id)
     test_data_ids_1 = test_data_y[test_data_y == 1].index[:50].values
     test_data_ids_0 = test_data_y[test_data_y == 0].index[:50].values
 
@@ -364,15 +424,15 @@ def save_to_csv_by_row(csv_file, new_df):
     assert isinstance(new_df, pd.DataFrame)
     # 不能存在NaN
     if new_df.isna().sum().sum() > 0:
-        print("exist NaN...")
+        logger.error("exist NaN...")
         return False
 
     if os.path.exists(csv_file):
         new_df.to_csv(csv_file, mode='a', index=True, header=False)
-        print("append to csv file success!")
+        logger.warning("append to csv file success!")
     else:
         new_df.to_csv(csv_file, index=True, header=True)
-        print("create to csv file success!")
+        logger.warning("create to csv file success!")
 
     return True
 
@@ -381,7 +441,7 @@ def create_path_if_not_exists(new_path):
     if not os.path.exists(new_path):
         try:
             os.makedirs(new_path)
-            print("create new dirs... {}".format(new_path))
+            logger.warning("create new dirs... {}".format(new_path))
         except Exception as err:
             pass
 
@@ -404,7 +464,7 @@ def get_sensitive_columns(strategy=2):
     for col in sens_cols:
         if col not in cur_columns_set:
             sens_cols.remove(col)
-            print("当前特征列表不存在此敏感特征-{}, 已删除...".format(col))
+            logger.warning("当前特征列表不存在此敏感特征-{}, 已删除...".format(col))
 
     return sens_cols
 
@@ -425,6 +485,7 @@ def get_diff_sens():
             cat_cols.append(col)
 
     return con_cols, cat_cols
+
 
 def get_qid_columns(strategy=2):
     """
@@ -449,11 +510,66 @@ def get_qid_columns(strategy=2):
 
     for col in qid_cols:
         if col not in cur_columns_set:
-            print("移除", col)
+            logger.warning("移除", col)
             qid_cols.remove(col)
             # raise ValueError("当前特征列表不存在准标识符-{}".format(col))
 
     return qid_cols
+
+
+def get_match_all_data_except_test_old(hos_id):
+    """
+    去除匹配样本中包含测试样本
+    :param hos_id:
+    :return:
+    """
+    res_old = get_hos_data_X_y_old(hos_id)[1]
+    index_old = res_old.index
+
+    match_data_X, match_data_y = get_match_all_data()
+    origin_len = match_data_X.shape[0]
+
+    index_all = match_data_X.index
+    index_set = set(index_all)
+
+    except_list = []
+    for index in index_old:
+        if index in index_set:
+            except_list.append(index)
+
+    match_condition = match_data_X.index.isin(except_list)
+    match_data_X = match_data_X[~match_condition]
+    match_data_y = match_data_y[~match_condition]
+
+    logger.warning(f"去除了{len(except_list)}个错误匹配患者,匹配患者数量 {origin_len}->{match_data_X.shape[0]}.")
+
+    return match_data_X, match_data_y
+
+
+
+def get_index_diff():
+    res_new = get_hos_data_X_y(73)[1]
+    res_old = get_hos_data_X_y_old(73)[1]
+
+    index_new = res_new.index
+    index_old = res_old.index
+
+    match_all = get_match_all_data()[0]
+    index_all = match_all.index
+
+    index_set = set(index_all)
+    count_new = 0
+    count_old = 0
+    for index in index_new:
+        if index in index_set:
+            count_new += 1
+
+    for index in index_old:
+        if index in index_set:
+            count_old += 1
+
+    print("count_old", count_old)
+    print("count_new", count_new)
 
 
 if __name__ == '__main__':
@@ -462,13 +578,11 @@ if __name__ == '__main__':
     # train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
+    get_match_all_data_except_test(73)
 
-    # res_new = get_hos_data_X_y(73)
     # version = 1
     # res_old = get_hos_data_X_y(73)
     print("done!")
-
-
 
     # res2 = get_fs_train_test_data_X_y(strategy=2)
     # get_topK_hospital()

@@ -16,7 +16,6 @@ import pandas as pd
 import os
 import pickle
 from my_logger import logger
-import xgboost as xgb
 
 MODEL_SAVE_PATH = '/home/chenqinhai/code_eicu/my_lab/result/S03/{}'
 global_xgb_boost = 1000
@@ -27,7 +26,7 @@ version = 7 类权重参数
 version = 10 xgb特征选择新数据
 version = 11 lr特征选择新数据
 """
-version = 5
+version = "5a"
 
 
 def get_xgb_model_pkl(hos_id):

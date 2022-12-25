@@ -16,6 +16,7 @@ import os.path
 import sys
 import threading
 
+import numpy as np
 from numpy.random import laplace
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
@@ -23,7 +24,7 @@ from sklearn.metrics import mean_squared_error
 
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
-from api_utils import get_fs_each_hos_data_X_y, get_sensitive_columns, create_path_if_not_exists
+from api_utils import get_fs_each_hos_data_X_y, get_sensitive_columns, create_path_if_not_exists, get_target_test_id
 from lr_utils_api import get_init_similar_weight
 from my_logger import logger
 import pandas as pd
@@ -282,7 +283,6 @@ def main_run_with_psm_noise(from_hos_id, to_hos_id, n_comp=0.95):
     match_hos_train_data_y = match_hos_train_data[sens_cols]
     target_hos_test_data_x = recover_target_data_x[train_cols]
 
-
     target_sens_predict = do_build_model(
         match_hos_train_data_x, match_hos_train_data_y, target_hos_test_data_x, sens_cols
     )
@@ -313,6 +313,12 @@ def main_run_with_psm_sens_weight(from_hos_id, to_hos_id, n_comp=0.95, sens_weig
         columns_list,
         sens_coef=sens_weight
     )
+
+    # 选取目标患者
+    test_data_ids_1, test_data_ids_0 = get_target_test_id(from_hos_id)
+    test_data_ids = np.concatenate((test_data_ids_1, test_data_ids_0), axis=0)
+    target_data_x = target_data_x.loc[test_data_ids]
+    target_data_y = target_data_y.loc[test_data_ids]
 
     # 1. PCA降维 得到 降维矩阵 （不同处理方式），然后还原数据
     pca_match_data_x, pca_target_data_x, recover_target_data_x = pca_reduction_with_similar_weight(
@@ -373,6 +379,12 @@ def main_run_with_psm(from_hos_id, to_hos_id, n_comp):
     match_init_similar_weight = get_init_similar_weight(to_hos_id)
     len_split = int(match_data_x.shape[0] * 0.1)
     columns_list = match_data_x.columns.to_list()
+
+    # 选取目标患者
+    test_data_ids_1, test_data_ids_0 = get_target_test_id(from_hos_id)
+    test_data_ids = np.concatenate((test_data_ids_1, test_data_ids_0), axis=0)
+    target_data_x = target_data_x.loc[test_data_ids]
+    target_data_y = target_data_y.loc[test_data_ids]
 
     # 1. PCA降维 得到 降维矩阵 （不同处理方式），然后还原数据
     pca_match_data_x, pca_target_data_x, recover_target_data_x = pca_reduction_with_similar_weight(
@@ -464,7 +476,7 @@ def main_run_with_no_psm(from_hos_id, to_hos_id, n_comp):
 if __name__ == '__main__':
     from_hospital_id = 73
     to_hospital_id = 0
-    pool_nums = 25
+    pool_nums = 22
 
     m_sample_weight = 0.01
 
