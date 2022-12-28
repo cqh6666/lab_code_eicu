@@ -144,7 +144,7 @@ class RiskManDiffLoss(SplitLoss):
 
 
 class SubGroupNode:
-    def __init__(self, thresholds, split_loss, depth, data_index, pre_split_features_dict: dict,
+    def __init__(self, thresholds, depth, data_index, pre_split_features_dict={}, split_loss=0,
                  recall_nums=None, threshold_nums=None, label_nums=None, recall_rate=None, split_feature_name=None, split_feature_value=None):
         """
         亚组节点
@@ -197,6 +197,7 @@ class SubGroupNode:
         self.recall_rate = recall_result_dict['recall_rate'][0], recall_result_dict['recall_rate'][1]
         self.all_nums = recall_result_dict['all_nums'][0], recall_result_dict['all_nums'][1]
 
+
 class SubGroupDecisionTree:
     def __init__(self, data_df: pd.DataFrame, select_features, splitLoss: SplitLoss, global_thresholds):
         """
@@ -220,33 +221,34 @@ class SubGroupDecisionTree:
         node.set_node_index(self.__get_node_index())
         node.parent_index = parent_index
 
-        # 1. 获取当前节点数据 和 备选特征集（用来做亚组分割）
-        used_features = list(node.pre_split_features_dict.keys())
-        remain_nums = len(self.select_features) - len(used_features)
+        cur_data_df = self.get_cur_node_data_df(node)
+        # 如果不公平，则不进行调整直接返回;如果公平，则调整后返回新结果;
+        recall_result_dict, cur_thresholds, split_loss = self.do_adjust_thresholds(cur_data_df)
 
-        # 2.1 若 无备选特征集或分割的亚组只有单样本，则把当前node设置为叶子节点，并添加到对应的决策树之中, return
-        if remain_nums == 0 or len(node.data_index) <= 1:
+        # 如果是根节点
+        if node.parent_index == -1:
+            # 注入召回率阈值等相关信息
+            node.set_recall_info(recall_result_dict)
+            node.thresholds = cur_thresholds
+            node.split_loss = split_loss
+
+        # 2.1 若没有备选特征，黑白群体的AKI样本量较小，loss=0
+        if self.stop_to_split_condition(node):
             node.set_leaf_node()
             self.node_tree[node.index] = node
-            return node
+            return
 
-        # 2.2 若 当前节点本来就为叶子节点，则添加到对应决策树之中，return
-        if node.is_leaf:
-            self.node_tree[node.index] = node
-            return node
+        node.set_inner_node()
+        self.node_tree[node.index] = node
 
         # 3. 计算每一个备选特征集的loss值并得到最小loss的特征，此特征用来做亚组分割，并得到新分割节点列表
-        best_split_feature, node_list = self.select_best_split_feature(node)
-
-        node.sub_nodes = node_list
-        self.node_tree[node.index] = node
+        node_list = self.select_best_split_feature(node)
 
         # 4. 将当前节点设置为内节点，并递归调用当前函数
         for sub_node in node_list:
             self.build_tree(sub_node, node.index)
-        # 5. 返回根节点
-        return node
 
+    @DeprecationWarning
     def get_tree_info(self):
         max_count = self.node_count
         cur_count = 1
@@ -313,9 +315,10 @@ class SubGroupDecisionTree:
         :return:
         """
         cur_data_df = self.get_cur_node_data_df(node)
-        remain_features = self.get_cur_node_remain_features(node)
 
+        # ============================================ 找到最佳划分点 ===========================================
         # 1. 获取当前分割的信息
+        remain_features = self.get_cur_node_remain_features(node)
         pre_split_feature_dict = node.pre_split_features_dict
 
         # 2. 循环对备选特征进行亚组分割，每个特征都会会分出子节点
@@ -337,13 +340,13 @@ class SubGroupDecisionTree:
                 temp_pre_split_feature_dict[feature] = feature_value
 
                 # 在全局阈值下计算 黑人召回率和白人召回率
-                recall_result_dict = cal_black_white_recall(temp_data_df, node.thresholds)
+                recall_result_dict = cal_black_white_recall(temp_data_df, self.global_thresholds)
                 black_recall, white_recall = recall_result_dict['recall_rate']
                 if black_recall >= white_recall:
                     # 2.1.2 若 黑人召回率 >= 白人召回率，则认为是公平的，不再继续分亚组。也就是把子节点初始化并赋为叶子节点，并且loss=0
                     # 初始化为叶子节点，并且设置loss=0
                     temp_node = SubGroupNode(
-                        thresholds=node.thresholds,
+                        thresholds=self.global_thresholds,
                         split_loss=0,
                         data_index=temp_data_df.index.to_list(),
                         pre_split_features_dict=temp_pre_split_feature_dict,
@@ -352,12 +355,11 @@ class SubGroupDecisionTree:
                         split_feature_value=feature_value,
                     )
                     temp_node.set_recall_info(recall_result_dict)
-                    temp_node.set_leaf_node()
                     logger.info(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})高于(或等于)白人召回率({white_recall}), 不再继续分亚组...")
                 else:
                     # 2.1.3 若 黑人召回率 < 白人召回率， 则需要进一步以最小损失进行分亚组。也就是需要对子节点进行修改阈值使得符合2.2。
                     logger.warning(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})低于白人召回率({white_recall}), 还得继续分亚组...")
-                    best_recall_result_dict, best_thresholds, split_loss = self.do_adjust_thresholds(node, temp_data_df)
+                    best_recall_result_dict, best_thresholds, split_loss = self.do_adjust_thresholds(temp_data_df)
 
                     # 2.1.4 得到最佳阈值后，把子节点进行初始化并赋值为内节点，设置相关参数并计算loss值
                     temp_node = SubGroupNode(
@@ -370,7 +372,6 @@ class SubGroupDecisionTree:
                         split_feature_value=feature_value,
                     )
                     temp_node.set_recall_info(best_recall_result_dict)
-                    temp_node.set_inner_node()
 
                 # 将当前节点保存到节点列表之中
                 cur_node_list.append(temp_node)
@@ -384,13 +385,14 @@ class SubGroupDecisionTree:
             all_node_dict[feature] = cur_node_list
 
         # 3. 每个备选特征的总loss值得到后，选出最小的loss值作为最优分割点。
-        best_split_feature = get_best_split_feature(all_loss_dict)
-        best_node_list = all_node_dict[best_split_feature]
+        # 若 两个子节点的loss之和还比父节点的loss还要高，则不进行分割
+        best_split_feature = get_best_split_feature(all_loss_dict, node.split_loss)
+        if best_split_feature is not None:
+            return all_node_dict[best_split_feature]
+        else:
+            return []
 
-        # 4. 返回结果
-        return best_split_feature, best_node_list
-
-    def do_adjust_thresholds(self, node: SubGroupNode, cur_data_df):
+    def do_adjust_thresholds(self, cur_data_df):
         """
         调整阈值使得 黑人召回率 高于 白人召回率
         调整策略：
@@ -402,11 +404,14 @@ class SubGroupDecisionTree:
         :param cur_data_df:
         :return:
         """
-        black_threshold, white_threshold = node.thresholds
+        black_threshold, white_threshold = self.global_thresholds
 
-        recall_result_dict = cal_black_white_recall(cur_data_df, node.thresholds)
+        recall_result_dict = cal_black_white_recall(cur_data_df, self.global_thresholds)
         black_recall, white_recall = recall_result_dict['recall_rate']
-        assert not black_recall >= white_recall, "黑人召回率已经高于白人召回率了，不需要调整..."
+
+        # 如果黑人召回率高于白人召回率，则直接返回
+        if black_recall >= white_recall:
+            return recall_result_dict, [black_threshold, white_threshold], 0
 
         # 将数据集先分成黑人和白人，再降序排序
         black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(by=Constant.score_column, ascending=False)
@@ -420,7 +425,7 @@ class SubGroupDecisionTree:
 
         new_thresholds = [black_threshold, white_threshold]
         # 计算损失值
-        split_loss = self.splitLoss.cal_loss(cur_data_df, node.thresholds, new_thresholds)
+        split_loss = self.splitLoss.cal_loss(cur_data_df, self.global_thresholds, new_thresholds)
 
         return recall_result_dict, new_thresholds, split_loss
 
@@ -457,7 +462,7 @@ class SubGroupDecisionTree:
         dot_end_str = "}"
 
         # edge 字符串添加
-        max_depth = 10
+        max_depth = 5
         all_dot_edge_str = ""
         all_dot_link_str = ""
         for node_index, node in self.node_tree.items():
@@ -488,6 +493,37 @@ class SubGroupDecisionTree:
         with open("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/my_tree.dot", "w") as f:
             f.write(all_dot_str)
             logger.info("save as dot success!")
+
+    def stop_to_split_condition(self, node, lower_threshold=1):
+        """
+        :param lower_threshold:
+        :param node:
+        :return:
+        """
+        remain_features = self.get_cur_node_remain_features(node)
+        # 如果损失为0或没有备选特征 则停止分裂
+        if node.split_loss == 0 or len(remain_features) == 0:
+            return True
+
+        cur_data_df = self.get_cur_node_data_df(node)
+
+        # 将数据集先分成黑人和白人，再降序排序
+        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(by=Constant.score_column, ascending=False)
+        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(by=Constant.score_column, ascending=False)
+
+        # 获取黑人和白人AKI为1的部分
+        black_label_true = (black_data_df[Constant.label_column] == 1)
+        white_label_true = (white_data_df[Constant.label_column] == 1)
+        # 获取黑人和白人AKI=1的人数
+        black_label_nums, white_label_nums = np.sum(black_label_true), np.sum(white_label_true)
+
+        # 如果黑人或白人AKI人数<= 一定阈值
+        if black_label_nums <= lower_threshold or white_label_nums <= lower_threshold:
+            return True
+
+        return False
+
+
 
 
 def cal_black_white_recall(cur_data_df: pd.DataFrame, thresholds: list):
@@ -613,9 +649,10 @@ def find_next_white_threshold(white_data_df, white_threshold, black_add_nums):
     return threshold
 
 
-def get_best_split_feature(loss_dict: dict):
+def get_best_split_feature(loss_dict: dict, parent_split_loss):
     """
     根据loss字典获得最小损失的特征
+    :param parent_split_loss:
     :param loss_dict:
     :return:
     """
@@ -625,6 +662,9 @@ def get_best_split_feature(loss_dict: dict):
         if loss < min_loss:
             min_loss = loss
             min_feature = feature
+
+    if min_loss > parent_split_loss:
+        return None
 
     return min_feature
 
@@ -663,15 +703,11 @@ if __name__ == '__main__':
 
     my_data_df = load_my_data(data_file_name)
     init_global_thresholds = get_global_thresholds(my_data_df, risk_rate)
-    init_recall_result_dict = cal_black_white_recall(my_data_df, init_global_thresholds)
     root_node = SubGroupNode(
         thresholds=init_global_thresholds,
-        split_loss=0,
         data_index=my_data_df.index.to_list(),
-        pre_split_features_dict={},
         depth=1,
     )
-    root_node.set_recall_info(init_recall_result_dict)
 
     subgroup_select_features = drg_list
 
