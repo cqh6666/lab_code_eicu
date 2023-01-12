@@ -133,6 +133,61 @@ def pca_reduction(train_x, test_x, similar_weight, n_comp):
     return pca_train_x, pca_test_x
 
 
+def pca_reduction(train_x, test_x, similar_weight, n_comp):
+    """
+    pca降维, n_comp更改为百分比
+    :param train_x:
+    :param test_x:
+    :param similar_weight:
+    :param n_comp:
+    :return:
+    """
+    if n_comp >= 1:
+        logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
+        sys.exit(1)
+
+    logger.warning(f"starting pca by train_data with similar weight...")
+    # pca降维
+    pca_model = PCA(n_components=n_comp, random_state=2022)
+    # 转换需要 * 相似性度量
+    new_test_data_x = pca_model.fit_transform(test_x * similar_weight)
+    new_train_data_x = pca_model.transform(train_x * similar_weight)
+    # 转成df格式
+    pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
+    pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
+
+    logger.info(f"n_components: [{pca_model.n_components}, {pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}")
+
+    return pca_train_x, pca_test_x
+
+
+def pca_reduction_no_similar(train_x, test_x, n_comp):
+    """
+    pca降维, n_comp更改为百分比
+    :param train_x:
+    :param test_x:
+    :param similar_weight:
+    :param n_comp:
+    :return:
+    """
+    if n_comp >= 1:
+        logger.warning("n_comp 超过 1 了，参数错误，重新设置为 1...")
+        sys.exit(1)
+
+    logger.warning(f"starting pca by train_data without similar weight...")
+    # pca降维
+    pca_model = PCA(n_components=n_comp, random_state=2022)
+    # 转换需要 * 相似性度量
+    new_test_data_x = pca_model.fit_transform(test_x)
+    new_train_data_x = pca_model.transform(train_x)
+    # 转成df格式
+    pca_test_x = pd.DataFrame(data=new_test_data_x, index=test_x.index)
+    pca_train_x = pd.DataFrame(data=new_train_data_x, index=train_x.index)
+
+    logger.info(f"n_components: [{pca_model.n_components}, {pca_test_x.shape[1]}], svd_solver:{pca_model.svd_solver}")
+
+    return pca_train_x, pca_test_x
+
 def print_result_info():
     """
     输出结果相关信息
@@ -202,7 +257,7 @@ def get_my_data(match_same=False):
 
     # t_x 为 原本匹配样本的训练集
     if match_same:
-        match_len = t_x.shape[0]
+        match_len = int(select_ratio * t_x.shape[0])
     else:
         match_len = train_data_x.shape[0]
 
@@ -318,8 +373,8 @@ if __name__ == '__main__':
     concat_nums = 25
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    global_feature_weight = get_transfer_weight(to_hos_id)
     init_similar_weight = get_init_similar_weight(from_hos_id)
+    global_feature_weight = get_transfer_weight(to_hos_id)
     """
     version = 2 不使用相似性度量
     version = 2-B 不使用相似性度量, 但匹配原中心百分之10%
@@ -328,8 +383,16 @@ if __name__ == '__main__':
     version = 3 使用相似性度量 敏感特征*0
     version = 4 使用相似性度量 敏感特征*0.5
     version = 5 使用相似性度量 敏感特征增加噪声
+    
+    version = 6 特征选择 使用单中心相似性度量 PCA降维 
+    version = 7 特征选择 不使用单中心相似性度量 PCA降维
+    version = 8 特征选择 使用匹配中心相似性度量 PCA降维
+    
+    ----- 使用测试集转化矩阵
+    version = 9 特征选择 使用单中心相似性度量 PCA降维
+    version = 10 特征选择 不使用单中心相似性度量 PCA降维
     """
-    version = "1"
+    version = "10"
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{from_hos_id}/"
@@ -348,13 +411,11 @@ if __name__ == '__main__':
         f"max_iter:{local_lr_iter}, select:{select}, version:{version}")
 
     # 读取数据
-    train_data_x, test_data_x, train_data_y, test_data_y, match_data_len = get_my_data(match_same=True)
-    len_split = int(select_ratio * match_data_len)
+    train_data_x, test_data_x, train_data_y, test_data_y, len_split = get_my_data(match_same=False)
 
     # 提前计算迁移后的训练集和测试集
     if is_transfer == 1:
         transfer_train_data_X = train_data_x * global_feature_weight
-        transfer_test_data_X = test_data_x * global_feature_weight
 
     # 将敏感特征的权重设为0，使得匹配完全没用上
     # init_similar_weight = process_sensitive_feature_weight(init_similar_weight, sens_coef=0.5)
@@ -369,7 +430,8 @@ if __name__ == '__main__':
     # init_similar_weight = concat_most_sensitive_feature_weight(init_similar_weight, concat_nums=concat_nums)
 
     # PCA降维
-    pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
+    # pca_train_data_x, pca_test_data_x = pca_reduction(train_data_x, test_data_x, init_similar_weight, n_components)
+    pca_train_data_x, pca_test_data_x = pca_reduction_no_similar(train_data_x, test_data_x, n_components)
 
     # 初始化个性化建模需要的df
     test_id_list = pca_test_data_x.index.values

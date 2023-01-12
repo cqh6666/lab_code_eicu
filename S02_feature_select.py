@@ -15,10 +15,11 @@ __author__ = 'cqh'
 import feather
 import pandas as pd
 from sklearn.metrics import roc_auc_score
+import xgboost as xgb
 
-from api_utils import get_all_norm_data, get_train_test_data_X_y
+from api_utils import get_all_norm_data, get_train_test_data_X_y, get_each_hos_data_X_y
 from sklearn.linear_model import LogisticRegression
-from my_logger import MyLog
+from my_logger import logger
 import numpy as np
 import os
 from sklearn.feature_selection import chi2, f_classif, VarianceThreshold
@@ -42,7 +43,7 @@ def var_feature_select(data_X, data_y, threshold=0.05):
 
     select_columns = var_thres.get_support(indices=True)
     select_columns = data_X.columns[select_columns].to_list()
-    my_logger.warning("使用方差阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
+    logger.warning("使用方差阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
         len(select_columns), len(data_X.columns), select_columns[:5]))
 
     return select_columns
@@ -58,7 +59,7 @@ def chi_feature_select(data_X, data_y, threshold=0.05):
     """
     select_columns = data_X.iloc[:, chi2(np.abs(data_X), data_y)[1] < threshold].columns.tolist()
 
-    my_logger.warning("使用卡方检验阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
+    logger.warning("使用卡方检验阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
         len(select_columns), len(data_X.columns), select_columns[:5]))
 
     return select_columns
@@ -73,7 +74,7 @@ def f_classif_feature_select(data_X, data_y, threshold=0.05):
     :return: 
     """
     select_columns = data_X.iloc[:, f_classif(np.abs(data_X), data_y)[1] < threshold].columns.tolist()
-    my_logger.warning("使用F检验阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
+    logger.warning("使用F检验阈值筛选出来的特征结果有 {}/{} 个, 前5个是 {}".format(
         len(select_columns), len(data_X.columns), select_columns[:5]))
 
     return select_columns
@@ -174,7 +175,6 @@ def xgb_feature_select(data_X, data_y, threshold=5):
     :param data_y:
     :return:
     """
-    import xgboost as xgb
 
     def get_xgb_params(num_boost):
         params = {
@@ -261,7 +261,7 @@ def feature_select_valid(select_columns, select_str):
     :return:
     """
     # 验证AUC性能
-    my_logger.warning("选择 {} 方式特征选择 {} 个特征后的结果: {}".format(
+    logger.warning("选择 {} 方式特征选择 {} 个特征后的结果: {}".format(
           select_str, len(select_columns), lr_auc_train(select_columns)))
 
 
@@ -303,7 +303,7 @@ def run():
     select_columns_new5 = lr_feature_select(all_data_X, all_data_y)
 
     # 特征选择前的结果
-    my_logger.warning("特征选择前的AUC结果: {}".format(lr_auc_train(all_data_X.columns)))
+    logger.warning("特征选择前的AUC结果: {}".format(lr_auc_train(all_data_X.columns)))
 
     feature_select_valid(select_columns_new1, select_str="chi+pearson")
     feature_select_valid(select_columns_new2, select_str="chi+pearson")
@@ -449,7 +449,7 @@ def last_feature_select2():
     :return:
     """
     # 获取数据X,y
-    all_data_X, all_data_y = get_data_X_y()
+    all_data_X, _, all_data_y, _ = get_each_hos_data_X_y(hos_id=0)
 
     # 嵌入法过滤
     # 基于XGB特征重要性
@@ -459,24 +459,24 @@ def last_feature_select2():
     pd.DataFrame({"feature": select_xgb_columns}).to_csv(os.path.join(save_path, f"select_xgb_columns_v{version}.csv"))
 
     # 基于LR特征重要性
-    print("start lr feature select...")
-    select_lr_columns = lr_feature_select(all_data_X, all_data_y)
-    print("根据LR重要性过滤后特征数: {}".format(len(select_lr_columns)))
-    pd.DataFrame({"feature": select_lr_columns}).to_csv(os.path.join(save_path, f"select_lr_columns_v{version}.csv"))
+    # print("start lr feature select...")
+    # select_lr_columns = lr_feature_select(all_data_X, all_data_y)
+    # print("根据LR重要性过滤后特征数: {}".format(len(select_lr_columns)))
+    # pd.DataFrame({"feature": select_lr_columns}).to_csv(os.path.join(save_path, f"select_lr_columns_v{version}.csv"))
 
     # 进行性能评估
     feature_select_valid(select_xgb_columns, select_str="xgb特征重要性")
-    feature_select_valid(select_lr_columns, select_str="lr特征重要性")
+    # feature_select_valid(select_lr_columns, select_str="lr特征重要性")
 
 
 if __name__ == '__main__':
-    my_logger = MyLog().logger
 
     """
     version = 3 只进行XGB或LR特征重要性选择特征
     version = 5 新处理 11.25
+    version = 5b xgb特征选择
     """
-    version = 5
+    version = "5b"
     y_label = "aki_label"
     hospital_id = "hospitalid"
     patient_id = "index"

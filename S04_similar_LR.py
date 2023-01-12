@@ -277,8 +277,10 @@ if __name__ == '__main__':
     version = 13 H-2 使用新数据 v5, 权重 v5a 去除包含测试集的样本的匹配样本(用全局的初始相似度量）
     version = 13 I 使用新数据 v5, 权重 v5a 去除包含在匹配样本的测试样本  （不保留）
     version = 13 J 使用新数据 v5, 权重 v5a 使用包含在匹配样本的测试样本  （保留）
+    
+    version = 14 LR个性化建模 不做特征选择 旧版本数据
     """
-    version = "13-F-2"
+    version = "14"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)

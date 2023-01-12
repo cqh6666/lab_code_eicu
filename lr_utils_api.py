@@ -35,11 +35,11 @@ version = 15 新数据后的权重 lr 不加类权重 离散特征
 version = 16 直接xgb特征选择，不做卡方和反差检测  1600
 version = 20 新数据预处理 1596
 
-version = 9 新数据的权重 不做特征选择 
+version = 5b xgb特征选择 新数据
 """
 # global_version = 10
 # hos_version = 10
-version = "5a"
+version = "5b"
 
 
 def get_init_similar_weight(hos_id):

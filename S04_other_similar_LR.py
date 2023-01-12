@@ -183,8 +183,10 @@ if __name__ == '__main__':
     version = 2  匹配其他中心 相似性度量(from) 迁移(to)  使用自己的相似性度量
     version = 3  匹配其他中心 相似性度量(from) 迁移(to)  用当前中心的10%样本
     
+    version = 5  73中心匹配其他所有中心数据
+    
     """
-    version = "2"
+    version = "5"
     # ================== save file name ====================
     save_path = f"./result/S04/{from_hos_id}/"
     create_path_if_not_exists(save_path)
@@ -198,14 +200,13 @@ if __name__ == '__main__':
     t_x, test_data_x, _, test_data_y = get_fs_each_hos_data_X_y(from_hos_id)
     train_data_x, _, train_data_y, _ = get_fs_each_hos_data_X_y(to_hos_id)
     match_data_len = int(select_ratio * t_x.shape[0])
-    len_split = match_data_len
 
     # # 是否等样本量匹配
-    # if is_train_same:
-    #     assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
-    #     len_split = match_data_len
-    # else:
-    #     len_split = int(select_ratio * train_data_x.shape[0])
+    if is_train_same:
+        assert not from_hos_id == 0, "训练全局数据不需要等样本匹配"
+        len_split = match_data_len
+    else:
+        len_split = int(select_ratio * train_data_x.shape[0])
 
     start_idx = 0
     final_idx = test_data_x.shape[0]
@@ -216,10 +217,10 @@ if __name__ == '__main__':
     test_data_y = test_data_y.iloc[start_idx:end_idx]
 
     logger.warning(f"[params] - model_select:LR, pool_nums:{pool_nums}, is_transfer:{is_transfer}, "
-                      f"max_iter:{local_lr_iter}, select:{select}, index_range:[{start_idx, end_idx}, "
-                      f"version:{version}]")
+                   f"max_iter:{local_lr_iter}, select:{select}, index_range:[{start_idx, end_idx}, "
+                   f"version:{version}]")
     logger.warning("load data - train_data:{}, test_data:{}, len_split:{}".
-                      format(train_data_x.shape, test_data_x.shape, len_split))
+                   format(train_data_x.shape, test_data_x.shape, len_split))
 
     # 测试集患者病人ID
     test_id_list = test_data_x.index.values
@@ -230,7 +231,6 @@ if __name__ == '__main__':
     if is_transfer == 1:
         logger.warning("is_tra is 1, pre get transfer_train_data_X, transfer_test_data_X...")
         transfer_train_data_X = train_data_x * global_feature_weight
-        transfer_test_data_X = test_data_x * global_feature_weight
 
     # ===================================== 任务开始 ==========================================
     # 多线程用到的全局锁, 异常消息队列

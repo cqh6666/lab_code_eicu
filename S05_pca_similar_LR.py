@@ -339,9 +339,11 @@ if __name__ == '__main__':
     version = 25 新数据 直接xgb特征选择 xgb重要性 （做相似性度量） 
     version = 26 新数据 直接xgb特征选择 xgb重要性 （不做相似性度量） 
     
-    version = 27 不做相似性度量 0.95 其他中心 
+    version = 27 不做相似性度量 0.95 其他中心
+    
+    version = 28 
     """
-    version = 26
+    version = 28
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{hos_id}/"

@@ -19,6 +19,8 @@ from sklearn.metrics import roc_auc_score
 
 disease_list=pd.read_csv('/home/liukang/Doc/disease_top_20.csv').squeeze().to_list()
 race_list = ['Demo2_1','Demo2_2']
+
+
 train_df = pd.read_csv('/home/liukang/Doc/valid_df/train_{}.csv'.format(1))
 test_df = pd.read_csv('/home/liukang/Doc/valid_df/test_{}.csv'.format(1))
 columns = train_df.columns.to_list()

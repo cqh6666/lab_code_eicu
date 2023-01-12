@@ -456,9 +456,11 @@ def get_sensitive_columns(strategy=2):
     # 肺结核, 冠心病, 神经病, 急性呼吸衰竭, 肾失调， 精神创伤， 传染病，
     sens_ccs = ['ccs_122', 'ccs_172', 'ccs_148', 'ccs_242', "ccs_42", "ccs_139", "ccs_229"]
     # 他克莫司（Tacrolimus）免疫抑制剂, 异丙酚（Propofol） 镇定剂
-    sens_med = ['med_1388', "med_1172", "med_121"]
+    # sens_med = ['med_1388', "med_1172", "med_121"]
+    sens_med = []
     # 神经病治疗, 肾衰竭传染性疾病
-    sens_px = ['px_242', "px_534", "px_10", "px_238", "px_20"]
+    # sens_px = ['px_242', "px_534", "px_10", "px_238", "px_20"]
+    sens_px = []
 
     sens_cols = sens_ccs + sens_med + sens_px
     for col in sens_cols:
@@ -578,7 +580,7 @@ if __name__ == '__main__':
     # train_data_x2, test_data_x2, train_data_y2, test_data_y2 = get_hos_data_X_y(73)
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
-    get_match_all_data_except_test(73)
+    # get_match_all_data_except_test(73)
 
     # version = 1
     # res_old = get_hos_data_X_y(73)
