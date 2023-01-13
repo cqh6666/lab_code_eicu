@@ -14,7 +14,10 @@ __author__ = 'cqh'
 import pandas as pd
 import numpy as np
 
-disease_list=pd.read_csv('/home/liukang/Doc/disease_top_20.csv').squeeze().to_list()
+
+# disease_list = pd.read_csv('/home/liukang/Doc/disease_top_20.csv').squeeze().to_list()
+my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
+
 race_list = ['Demo2_1', 'Demo2_2']
 # train_df = pd.read_csv('/home/liukang/Doc/valid_df/train_{}.csv'.format(1))
 # test_df = pd.read_csv('/home/liukang/Doc/valid_df/test_{}.csv'.format(1))
@@ -49,17 +52,28 @@ race_list = ['Demo2_1', 'Demo2_2']
 # all_data_df.to_feather("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/test_data_1.feather")
 
 
-all_data_df = pd.DataFrame()
-for idx in range(1, 6):
-    test_df = pd.read_csv('/home/liukang/Doc/valid_df/test_{}.csv'.format(idx))
-    person_result = pd.read_csv('/home/liukang/Doc/No_Com/test_para/Ma_old_Nor_Gra_01_001_0_005-{}_50.csv'.format(idx))
-    y_score = person_result['update_1921_mat_proba']
-    score_df = pd.DataFrame(data={"score_y": y_score}, index=test_df.index.to_list())
-    all_data = pd.concat([test_df[race_list], test_df[disease_list], test_df[['Label']], score_df], axis=1)
-    data1 = all_data[all_data['Demo2_1'] == 1]
-    data2 = all_data[all_data['Demo2_2'] == 1]
-    cur_data_df = pd.concat([data1, data2], axis=0).round(4)
-    all_data_df = pd.concat([all_data_df, cur_data_df], axis=0)
+def get_range_data(range_numbers, file_name=None):
+    all_data_df = pd.DataFrame()
+    for idx in range_numbers:
+        test_df = pd.read_csv('/home/liukang/Doc/valid_df/test_{}.csv'.format(idx))
+        person_result = pd.read_csv('/home/liukang/Doc/No_Com/test_para/Ma_old_Nor_Gra_01_001_0_005-{}_50.csv'.format(idx))
+        y_score = person_result['update_1921_mat_proba']
+        score_df = pd.DataFrame(data={"score_y": y_score}, index=test_df.index.to_list())
+        all_data = pd.concat([test_df[race_list], test_df[my_cols], test_df[['Label']], score_df], axis=1)
+        data1 = all_data[all_data['Demo2_1'] == 1]
+        data2 = all_data[all_data['Demo2_2'] == 1]
+        cur_data_df = pd.concat([data1, data2], axis=0).round(4)
+        all_data_df = pd.concat([all_data_df, cur_data_df], axis=0)
 
-all_data_df.reset_index(drop=True, inplace=True)
-all_data_df.to_feather("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/test_data_all.feather")
+    all_data_df.reset_index(drop=True, inplace=True)
+    # all_data_df.to_feather(f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{file_name}_data.feather")
+    print("load success! ", range_numbers)
+    return all_data_df
+
+
+
+if __name__ == '__main__':
+
+    # train_data
+    train_data = get_range_data([1,2,3,4], "train")
+    test_data = get_range_data([5], "test")

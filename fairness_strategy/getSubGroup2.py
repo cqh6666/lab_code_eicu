@@ -12,9 +12,13 @@
 """
 __author__ = 'cqh'
 
+import sys
+
 import pandas as pd
 import numpy as np
 
+from api_utils import save_to_csv_by_row
+from get_failness_data import get_range_data
 from my_logger import logger
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -211,7 +215,10 @@ class SubGroupDecisionTree:
         self.select_features = select_features
         self.splitLoss = splitLoss
         self.global_thresholds = global_thresholds
+        self.max_depth = 15
 
+        # 根节点
+        self.root_node = None
         # 根节点的loss（未做亚组划分的loss）
         self.root_loss = 0
         self.split_plus_loss = 0
@@ -236,6 +243,7 @@ class SubGroupDecisionTree:
             node.thresholds = cur_thresholds
             node.split_loss = split_loss
             self.root_loss = split_loss
+            self.root_node = node
 
         # 2.1 若没有备选特征，黑白群体的AKI样本量较小，loss=0
         if self.stop_to_split_condition(node):
@@ -253,22 +261,6 @@ class SubGroupDecisionTree:
         # 4. 将当前节点设置为内节点，并递归调用当前函数
         for sub_node in node_list:
             self.build_tree(sub_node, node.index)
-
-    @DeprecationWarning
-    def get_tree_info(self):
-        max_count = self.node_count
-        cur_count = 1
-        cur_depth = 1
-        while cur_count <= max_count:
-            logger.info("")
-            logger.info(f"======================== depth: {cur_depth} ======================")
-            for _, node in self.node_tree.items():
-                if node.depth == cur_depth:
-                    self.print_node_info(node)
-                    cur_count += 1
-            logger.info(f"======================== depth: {cur_depth} ======================")
-            cur_depth += 1
-            logger.info("")
 
     def __get_node_index(self):
         self.node_count += 1
@@ -361,10 +353,10 @@ class SubGroupDecisionTree:
                         split_feature_value=feature_value,
                     )
                     temp_node.set_recall_info(recall_result_dict)
-                    logger.info(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})高于(或等于)白人召回率({white_recall}), 不再继续分亚组...")
+                    # logger.info(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})高于(或等于)白人召回率({white_recall}), 不再继续分亚组...")
                 else:
                     # 2.1.3 若 黑人召回率 < 白人召回率， 则需要进一步以最小损失进行分亚组。也就是需要对子节点进行修改阈值使得符合2.2。
-                    logger.warning(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})低于白人召回率({white_recall}), 还得继续分亚组...")
+                    # logger.warning(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})低于白人召回率({white_recall}), 还得继续分亚组...")
                     best_recall_result_dict, best_thresholds, split_loss = self.do_adjust_thresholds(temp_data_df)
 
                     # 2.1.4 得到最佳阈值后，把子节点进行初始化，设置相关参数并计算loss值
@@ -435,6 +427,13 @@ class SubGroupDecisionTree:
 
         return recall_result_dict, new_thresholds, split_loss
 
+    def get_tree_info(self):
+        logger.warning("==========================================================")
+        logger.info(f'risk_rate = {risk_rate}')
+        logger.info(f'global_thresholds = {self.global_thresholds}')
+        logger.info(f'node_count = {self.node_count + 1}')
+        logger.info(f'root_loss = {self.root_loss}')
+        logger.warning("==========================================================")
     def convert_format_to_dot(self):
         """
         将我当前的类的树模型转化为可以输入的模型，最终得到 dot 文件， 可以输出png格式的图片
@@ -505,9 +504,16 @@ class SubGroupDecisionTree:
         :param node:
         :return:
         """
-        remain_features = self.get_cur_node_remain_features(node)
-        # 如果损失为0或没有备选特征 则停止分裂
-        if node.split_loss == 0 or len(remain_features) == 0:
+        # 如果树的深度过大，提前终止
+        if node.depth > self.max_depth:
+            return True
+
+        # 损失为0，提前终止
+        if node.split_loss == 0:
+            return True
+
+        # 没有备选特征 则停止分裂
+        if len(self.get_cur_node_remain_features(node)) == 0:
             return True
 
         cur_data_df = self.get_cur_node_data_df(node)
@@ -537,6 +543,72 @@ class SubGroupDecisionTree:
                 self.split_plus_loss += node.split_loss
 
         return self.split_plus_loss
+
+    def predict(self, test_data_df: pd.DataFrame):
+        """
+        测试集数据，放入叶子节点中，计算出最终的loss值
+        :param test_data_df:
+        :return:
+        """
+        test_data_index = test_data_df.index.to_list()
+        # 保存结果映射
+        leaf_index_df = pd.DataFrame(index=test_data_index, columns=['leaf_index'])
+
+        for index in test_data_index:
+            temp_data = test_data_df.loc[index, :]
+            # 根据当前树结构找到对应的叶子节点的ID
+            leaf_index_df.loc[index, 'leaf_index'] = self.get_leaf_index(temp_data)
+
+        # 计算根节点的LOSS
+        root_loss = self.splitLoss.cal_loss(test_data_df, self.global_thresholds, self.root_node.thresholds)
+        # 计算每个叶子节点的LOSS
+        leaf_node_list = self.get_leaf_node()
+
+        split_all_loss = 0
+        for leaf_node in leaf_node_list:
+            cur_index = leaf_node.index
+            cur_subgroup_data_df = test_data_df.loc[leaf_index_df['leaf_index'] == cur_index, :]
+            split_all_loss += self.splitLoss.cal_loss(cur_subgroup_data_df, self.global_thresholds, leaf_node.thresholds)
+
+        return root_loss, split_all_loss
+
+    def get_leaf_node(self):
+        """
+        获取叶子节点列表
+        :return:
+        """
+        leaf_list = []
+        for node_index, node in self.node_tree.items():
+            if node.is_leaf:
+                leaf_list.append(node)
+
+        return leaf_list
+
+    def get_leaf_index(self, temp_data):
+        """
+        当前测试节点，找到对应的叶子节点ID
+        :param temp_data: pd.Series
+        :return:
+        """
+        cur_node = self.root_node
+
+        while not cur_node.is_leaf:
+            cur_child_nodes = cur_node.sub_nodes
+            is_match = False
+            for cur_child in cur_child_nodes:
+                feature_name = cur_child.split_feature_name
+                feature_value = cur_child.split_feature_value
+                if temp_data[feature_name] == feature_value:
+                    cur_node = cur_child
+                    is_match = True
+                    break
+
+            if not is_match:
+                raise ValueError(f"index: {cur_node.index} - 匹配特征失败，中止匹配!")
+
+        return cur_node.index
+
+
 def cal_black_white_recall(cur_data_df: pd.DataFrame, thresholds: list):
     """
     根据数据集和阈值计算 黑人和白人 的风险人数
@@ -651,7 +723,7 @@ def find_next_white_threshold(white_data_df, white_threshold, black_add_nums):
         new_index -= 1
 
     if new_index < 0:
-        logger.warning("找不到使得白人阈值上升对应匹配的人数, 只能取最大值...")
+        # logger.warning("找不到使得白人阈值上升对应匹配的人数, 只能取最大值...")
         return white_score[0]
 
     threshold = white_score[new_index]
@@ -660,17 +732,17 @@ def find_next_white_threshold(white_data_df, white_threshold, black_add_nums):
     return threshold
 
 
-def get_best_split_feature(loss_dict: dict, cur_node):
+def get_best_split_feature(cur_loss_dict: dict, cur_node):
     """
     根据loss字典获得最小损失的特征
     :param cur_node:
-    :param loss_dict:
+    :param cur_loss_dict:
     :return:
     """
     parent_split_loss = cur_node.split_loss
     min_loss = np.iinfo(np.int32).max
     min_feature = None
-    for feature, loss in loss_dict.items():
+    for feature, loss in cur_loss_dict.items():
         if loss < min_loss:
             min_loss = loss
             min_feature = feature
@@ -729,36 +801,82 @@ def get_black_white_global_thresholds(data_df: pd.DataFrame, rate):
 
 
 
+def cross_predict():
+    # train_data = load_my_data(data_file_name.format("train"))
+    # test_data = load_my_data(data_file_name.format("test"))
+
+    all_range_list = [1, 2, 3, 4, 5]
+    all_init_loss = []
+    all_split_loss = []
+
+    for index in all_range_list:
+        train_index = [temp for temp in all_range_list if temp != index]
+        test_index = [index]
+
+        train_data = get_range_data(train_index)
+        test_data = get_range_data(test_index)
+        logger.warning(f"get_data ===== train:{train_data.shape}, test:{test_data.shape}")
+
+        init_global_thresholds = get_global_thresholds(train_data, risk_rate)
+        root_node = SubGroupNode(
+            thresholds=init_global_thresholds,
+            data_index=train_data.index.to_list(),
+            depth=1,
+        )
+
+        subgroup_select_features = my_cols
+
+        sbdt = SubGroupDecisionTree(
+            data_df=train_data,
+            global_thresholds=init_global_thresholds,
+            select_features=subgroup_select_features,
+            splitLoss=myLoss,
+        )
+
+        logger.warning(f"start build tree!")
+        # 关键入口
+        sbdt.build_tree(root_node, -1)
+        sbdt.get_tree_info()
+        # sbdt.convert_format_to_dot()
+        logger.warning("start predict loss!")
+        init_loss, split_loss = sbdt.predict(test_data)
+
+        all_init_loss.append(init_loss)
+        all_split_loss.append(split_loss)
+
+        logger.info(f"{init_loss},{split_loss} done!")
+
+    save_result_file = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/{myLoss.name}_测试集5折交叉结果_v{version}.csv"
+    save_df = pd.DataFrame(index=[risk_rate], data={
+        "init_loss": np.sum(all_init_loss),
+        "split_loss": np.sum(all_split_loss)
+    })
+    save_to_csv_by_row(save_result_file, save_df)
+    logger.warning(f"save success! - {save_result_file}")
+
+
 if __name__ == '__main__':
-    risk_rate = 0.8
-    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/test_data_all.feather"
+    risk_rate = float(sys.argv[1])
+    split_type = int(sys.argv[2])
 
-    drg_cols = "/home/liukang/Doc/disease_top_20.csv"
-    drg_list = pd.read_csv(drg_cols).squeeze().to_list()
+    """
+    version = 1  drg top 20
+    version = 2  all drg, ccs, demo3
+    """
+    version = 2
+    # drg_cols = "/home/liukang/Doc/disease_top_20.csv"
+    # drg_list = pd.read_csv(drg_cols).squeeze().to_list()
+    my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
 
-    my_data_df = load_my_data(data_file_name)
-    # init_global_thresholds = get_global_thresholds(my_data_df, risk_rate)
-    init_global_thresholds = get_black_white_global_thresholds(my_data_df, risk_rate)
+    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
 
-    root_node = SubGroupNode(
-        thresholds=init_global_thresholds,
-        data_index=my_data_df.index.to_list(),
-        depth=1,
-    )
+    loss_dict = {
+        1: RiskAkiDiffLoss(name="额外牺牲"),
+        2: RiskProbDiffLoss(name="概率变化"),
+        3: RiskManDiffLoss(name=f"换手率")
+    }
 
-    subgroup_select_features = drg_list
+    myLoss = loss_dict[split_type]
 
-    # myLoss = RiskAkiDiffLoss(name="额外牺牲")
-    myLoss = RiskProbDiffLoss(name="概率变化")
-    # myLoss = RiskManDiffLoss(name=f"换手率")
-    sbdt = SubGroupDecisionTree(
-        data_df=my_data_df,
-        global_thresholds=init_global_thresholds,
-        select_features=subgroup_select_features,
-        splitLoss=myLoss,
-    )
+    cross_predict()
 
-    # 关键入口
-    sbdt.build_tree(root_node, -1)
-    sbdt.convert_format_to_dot()
-    print("done!")
