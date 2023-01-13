@@ -234,8 +234,8 @@ def my_pca_reduction_concat_cor_all_data(train_x, test_x, similar_weight, n_comp
 
     # from hos
     tempPCA = MyPCA(n_components=n_comp)
-    test_X_cor = tempPCA.get_X_cov(test_x * similar_weight)
-    train_X_cor = tempPCA.get_X_cov(train_x * similar_weight)
+    test_X_cor = tempPCA.get_X_cov(test_x)
+    train_X_cor = tempPCA.get_X_cov(train_x)
 
     concat_X_cor = (test_X_cor + train_X_cor) / 2
 
@@ -541,13 +541,13 @@ if __name__ == '__main__':
     version = 14 特征选择 不使用相似性度量 使用所有数据进行PCA降维
     
     ------- 自己的MyPCA
-    version = 12 特征选择 使用单中心相似性度量 使用所有数据进行PCA降维
-    version = 13 特征选择 不使用单中心相似性度量 使用所有数据进行PCA降维
+    version = 12 特征选择 使用单中心相似性度量 PCA降维
+    version = 13 特征选择 不使用单中心相似性度量 PCA降维
     
-    version = 15 特征选择 相似性度量 合并协方差矩阵 使用所有数据进行PCA降维
-    version = 16 特征选择 不使用相似性度量 合并协方差矩阵 使用所有数据进行PCA降维
+    version = 15 特征选择 相似性度量 合并协方差矩阵 PCA降维
+    version = 16 特征选择 不使用相似性度量 合并协方差矩阵 PCA降维
     """
-    version = "15"
+    version = "16"
     # ================== save file name ====================
     # 不存在就创建
     save_path = f"./result/S05/{from_hos_id}/"
@@ -591,8 +591,8 @@ if __name__ == '__main__':
     # pca_train_data_x, pca_test_data_x = pca_reduction_all_data(train_data_x, test_data_x, init_similar_weight, n_components)
     # pca_train_data_x, pca_test_data_x = my_pca_reduction_all_data(train_data_x, test_data_x, init_similar_weight, n_components)
     # pca_train_data_x, pca_test_data_x = my_pca_reduction_no_similar_all_data(train_data_x, test_data_x, n_components)
-    pca_train_data_x, pca_test_data_x = my_pca_reduction_concat_cor_all_data(train_data_x, test_data_x, init_similar_weight, n_components)
-    # pca_train_data_x, pca_test_data_x = my_pca_reduction_concat_cor_no_similar_all_data(train_data_x, test_data_x, n_components)
+    # pca_train_data_x, pca_test_data_x = my_pca_reduction_concat_cor_all_data(train_data_x, test_data_x, init_similar_weight, n_components)
+    pca_train_data_x, pca_test_data_x = my_pca_reduction_concat_cor_no_similar_all_data(train_data_x, test_data_x, n_components)
 
     # 初始化个性化建模需要的df
     test_id_list = pca_test_data_x.index.values
