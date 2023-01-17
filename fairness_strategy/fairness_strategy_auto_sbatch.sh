@@ -4,7 +4,7 @@ timeStamp=`date -d "$current" +%s`
 curStamp=$((timeStamp*1000+10#`date "+%N"`/1000000)) #将current转换为时间戳，精确到毫秒
 
 all_risk_rate=(0.8 0.85 0.9 0.95)
-all_loss_type=(1 2 3)
+all_loss_type=(2)
 for risk_rate in ${all_risk_rate[@]}
 do
   for loss_type in ${all_loss_type[@]}

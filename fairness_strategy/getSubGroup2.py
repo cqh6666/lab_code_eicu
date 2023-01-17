@@ -57,34 +57,25 @@ class RiskProbDiffLoss(SplitLoss):
         :param new_thresholds: 黑人和白人的新阈值
         :return:
         """
+        # 筛选AKI患者
+        cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
+
         # 将数据集先分成黑人和白人，再降序排序
-        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(
-            by=Constant.score_column, ascending=False)
-        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(
-            by=Constant.score_column, ascending=False)
+        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race]
+        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race]
 
-        black_score = black_data_df[Constant.score_column].values
-        white_score = white_data_df[Constant.score_column].values
+        black_score = black_data_df[Constant.score_column]
+        white_score = white_data_df[Constant.score_column]
 
-        old_prob, new_prob = [], []
+        old_black_prob_sum = black_score[black_score >= old_thresholds[0]].sum()
+        old_white_prob_sum = white_score[white_score >= old_thresholds[1]].sum()
+        new_black_prob_sum = black_score[black_score >= new_thresholds[0]].sum()
+        new_white_prob_sum = white_score[white_score >= new_thresholds[1]].sum()
 
-        for b_score in black_score:
-            if b_score >= old_thresholds[0]:
-                old_prob.append(b_score)
-            if b_score >= new_thresholds[0]:
-                new_prob.append(b_score)
+        old_sum = old_black_prob_sum + old_white_prob_sum
+        new_sum = new_black_prob_sum + new_white_prob_sum
 
-        for w_score in white_score:
-            if w_score >= old_thresholds[1]:
-                old_prob.append(w_score)
-            if w_score >= new_thresholds[1]:
-                new_prob.append(w_score)
-
-        old_mean = np.sum(old_prob)
-        new_mean = np.sum(new_prob)
-
-        return round(old_mean - new_mean, 4)
-
+        return round(old_sum - new_sum, 4)
 
 class RiskAkiDiffLoss(SplitLoss):
 
@@ -99,20 +90,19 @@ class RiskAkiDiffLoss(SplitLoss):
         :param new_thresholds: 黑人和白人的新阈值
         :return:
         """
+        # 筛选AKI患者
+        cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
+
         # 将数据集先分成黑人和白人
         black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race][
             [Constant.score_column, Constant.label_column]]
         white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race][
             [Constant.score_column, Constant.label_column]]
 
-        old_black_aki_nums = black_data_df[black_data_df[Constant.score_column] >= old_thresholds[0]][
-            Constant.label_column].sum()
-        old_white_aki_nums = white_data_df[white_data_df[Constant.score_column] >= old_thresholds[1]][
-            Constant.label_column].sum()
-        new_black_aki_nums = black_data_df[black_data_df[Constant.score_column] >= new_thresholds[0]][
-            Constant.label_column].sum()
-        new_white_aki_nums = white_data_df[white_data_df[Constant.score_column] >= new_thresholds[1]][
-            Constant.label_column].sum()
+        old_black_aki_nums = black_data_df[black_data_df[Constant.score_column] >= old_thresholds[0]].shape[0]
+        old_white_aki_nums = white_data_df[white_data_df[Constant.score_column] >= old_thresholds[1]].shape[0]
+        new_black_aki_nums = black_data_df[black_data_df[Constant.score_column] >= new_thresholds[0]].shape[0]
+        new_white_aki_nums = white_data_df[white_data_df[Constant.score_column] >= new_thresholds[1]].shape[0]
 
         old_aki_nums = old_black_aki_nums + old_white_aki_nums
         new_aki_nums = new_black_aki_nums + new_white_aki_nums
@@ -133,6 +123,9 @@ class RiskManDiffLoss(SplitLoss):
         :param new_thresholds: 黑人和白人的新阈值
         :return:
         """
+        # 筛选AKI患者
+        cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
+        # 白种人
         white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race]
 
         old_white_threshold = old_thresholds[1]
@@ -671,7 +664,6 @@ def find_next_black_threshold(black_data_df, black_threshold):
         thresholds 新的阈值
         add_nums 黑人阈值下降后 新增的风险人数
     """
-
     black_score = black_data_df[Constant.score_column].values
     len_black_score = len(black_score)
     threshold = black_threshold
@@ -862,8 +854,9 @@ if __name__ == '__main__':
     """
     version = 1  drg top 20
     version = 2  all drg, ccs, demo3
+    version = 3  all drg, ccs, demo3   概率变化修复bug
     """
-    version = 2
+    version = 3
     # drg_cols = "/home/liukang/Doc/disease_top_20.csv"
     # drg_list = pd.read_csv(drg_cols).squeeze().to_list()
     my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
