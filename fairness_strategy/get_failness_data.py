@@ -71,7 +71,6 @@ def get_range_data(range_numbers, file_name=None):
     return all_data_df
 
 
-
 if __name__ == '__main__':
 
     # train_data

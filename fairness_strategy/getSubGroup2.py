@@ -12,6 +12,7 @@
 """
 __author__ = 'cqh'
 
+import pickle
 import sys
 
 import pandas as pd
@@ -19,17 +20,31 @@ import numpy as np
 
 from api_utils import save_to_csv_by_row
 from get_failness_data import get_range_data
+from get_eicu_dataset import get_subgroup_data
 from my_logger import logger
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 class Constant:
+    """
+    eicu:
+        score_column = “score_y”
+        label_column = "Label"
+        black_race_column = "race_black"
+        white_race_column = "race_white"
+
+    """
     score_column = "score_y"
-    label_column = "Label"
-    # race_columns = "race"
-    black_race_column = "Demo2_2"
-    white_race_column = "Demo2_1"
+    # label_column = "Label"
+    # black_race_column = "Demo2_2"
+    # white_race_column = "Demo2_1"
+
+    # eicu
+    label_column = "aki_label"
+    black_race_column = "race_African American"
+    white_race_column = "race_Caucasian"
+
     black_race = 1
     white_race = 1
 
@@ -58,7 +73,7 @@ class RiskProbDiffLoss(SplitLoss):
         :return:
         """
         # 筛选AKI患者
-        cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
+        # cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
 
         # 将数据集先分成黑人和白人，再降序排序
         black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race]
@@ -124,7 +139,7 @@ class RiskManDiffLoss(SplitLoss):
         :return:
         """
         # 筛选AKI患者
-        cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
+        # cur_data_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
         # 白种人
         white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race]
 
@@ -315,6 +330,20 @@ class SubGroupDecisionTree:
         # 2. 循环对备选特征进行亚组分割，每个特征都会会分出子节点
         all_loss_dict = {}
         all_node_dict = {}
+
+        # ======================== 多线程计算 ================================
+        # thread_list = []
+        # for feature in remain_features:
+        #     thread_list.append(executor.submit(
+        #         self.buildFeatureNode, cur_data_df, node, feature
+        #     ))
+        # wait(thread_list, return_when=ALL_COMPLETED)
+        #
+        # for feature, thread in zip(remain_features, thread_list):
+        #     # 添加到字典之中
+        #     all_loss_dict[feature], all_node_dict[feature] = thread.result()
+
+        # ======================== 单线程计算 ================================
         for feature in remain_features:
             # 2.1 接下来对每个子节点进行计算
             feature_unique_list = cur_data_df[feature].value_counts().index.sort_values(ascending=True).to_list()
@@ -383,6 +412,75 @@ class SubGroupDecisionTree:
         else:
             return []
 
+    def buildFeatureNode(self, cur_data_df, node, feature):
+        """
+        建立特征节点
+        :param node:
+        :param cur_data_df:
+        :param feature:
+        :return:
+        """
+        # start_time = time.time()
+        pre_split_feature_dict = node.pre_split_features_dict
+
+        # 2.1 接下来对每个子节点进行计算
+        feature_unique_list = cur_data_df[feature].value_counts().index.sort_values(ascending=True).to_list()
+        # 记录子节点loss总和
+        cur_loss = 0
+        cur_node_list = []
+        cur_depth = node.depth + 1
+
+        for feature_value in feature_unique_list:  # 一般是 0, 1
+            # 获取数据
+            temp_data_df = cur_data_df[cur_data_df[feature] == feature_value]
+            # 添加新的分割点到分割字典之中
+            temp_pre_split_feature_dict = pre_split_feature_dict.copy()
+            temp_pre_split_feature_dict[feature] = feature_value
+
+            # 在全局阈值下计算 黑人召回率和白人召回率
+            recall_result_dict = cal_black_white_recall(temp_data_df, self.global_thresholds)
+            black_recall, white_recall = recall_result_dict['recall_rate']
+            if black_recall >= white_recall:
+                # 2.1.2 若 黑人召回率 >= 白人召回率，则认为是公平的，不再继续分亚组。也就是把子节点初始化并赋为叶子节点，并且loss=0
+                # 初始化为叶子节点，并且设置loss=0
+                temp_node = SubGroupNode(
+                    thresholds=self.global_thresholds,
+                    split_loss=0,
+                    data_index=temp_data_df.index.to_list(),
+                    pre_split_features_dict=temp_pre_split_feature_dict,
+                    depth=cur_depth,
+                    split_feature_name=feature,
+                    split_feature_value=feature_value,
+                )
+                temp_node.set_recall_info(recall_result_dict)
+                # logger.info(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})高于(或等于)白人召回率({white_recall}), 不再继续分亚组...")
+            else:
+                # 2.1.3 若 黑人召回率 < 白人召回率， 则需要进一步以最小损失进行分亚组。也就是需要对子节点进行修改阈值使得符合2.2。
+                # logger.warning(f"{node.depth}-[parent_index:{node.index}]-[{feature}:{feature_value}]: 黑人召回率({black_recall})低于白人召回率({white_recall}), 还得继续分亚组...")
+                best_recall_result_dict, best_thresholds, split_loss = self.do_adjust_thresholds(temp_data_df)
+
+                # 2.1.4 得到最佳阈值后，把子节点进行初始化，设置相关参数并计算loss值
+                temp_node = SubGroupNode(
+                    thresholds=best_thresholds,
+                    split_loss=split_loss,
+                    data_index=temp_data_df.index.to_list(),
+                    pre_split_features_dict=temp_pre_split_feature_dict,
+                    depth=cur_depth,
+                    split_feature_name=feature,
+                    split_feature_value=feature_value,
+                )
+                temp_node.set_recall_info(best_recall_result_dict)
+
+            # 将当前节点保存到节点列表之中
+            cur_node_list.append(temp_node)
+
+        # 2.2 将每个子节点的loss值进行相加
+        for cur_node in cur_node_list:
+            cur_loss += cur_node.split_loss
+
+        # logger.info(f"{threading.currentThread().getName()}- id:{node.index}- feature:{feature}- loss:{cur_loss} [{start_time}]")
+        return cur_loss, cur_node_list
+
     def do_adjust_thresholds(self, cur_data_df):
         """
         调整阈值使得 黑人召回率 高于 白人召回率
@@ -424,9 +522,12 @@ class SubGroupDecisionTree:
         logger.warning("==========================================================")
         logger.info(f'risk_rate = {risk_rate}')
         logger.info(f'global_thresholds = {self.global_thresholds}')
+        logger.info(f'root node thresholds = {self.root_node.thresholds}')
+        logger.info(f'root node recall_rate = {self.root_node.recall_rate}')
         logger.info(f'node_count = {self.node_count + 1}')
         logger.info(f'root_loss = {self.root_loss}')
         logger.warning("==========================================================")
+
     def convert_format_to_dot(self):
         """
         将我当前的类的树模型转化为可以输入的模型，最终得到 dot 文件， 可以输出png格式的图片
@@ -491,7 +592,7 @@ class SubGroupDecisionTree:
             f.write(all_dot_str)
             logger.info("save as dot success!")
 
-    def stop_to_split_condition(self, node, lower_threshold=1):
+    def stop_to_split_condition(self, node, lower_threshold=5):
         """
         :param lower_threshold:
         :param node:
@@ -658,14 +759,16 @@ def cal_black_white_recall(cur_data_df: pd.DataFrame, thresholds: list):
 def find_next_black_threshold(black_data_df, black_threshold):
     """
     找到下一个黑人阈值 阈值下降
+    未被选中的最高风险的AKI黑人对应的分数
     :param black_data_df: 黑人数据集（已经按预测概率降序排序）
-    :param black_threshold: 黑人风险阈值
+    :param black_threshold: 黑人风险阈值 已经排好序
     :return:
         thresholds 新的阈值
         add_nums 黑人阈值下降后 新增的风险人数
     """
     black_score = black_data_df[Constant.score_column].values
     len_black_score = len(black_score)
+
     threshold = black_threshold
     add_nums = 0
 
@@ -716,12 +819,10 @@ def find_next_white_threshold(white_data_df, white_threshold, black_add_nums):
 
     if new_index < 0:
         # logger.warning("找不到使得白人阈值上升对应匹配的人数, 只能取最大值...")
-        return white_score[0]
-
-    threshold = white_score[new_index]
-
-    # logger.info(f"白人阈值上升! [{white_threshold}->{threshold}]...")
-    return threshold
+        return white_score[0] + 0.5
+    else:
+        # logger.info(f"白人阈值上升! [{white_threshold}->{threshold}]...")
+        return white_score[new_index]
 
 
 def get_best_split_feature(cur_loss_dict: dict, cur_node):
@@ -788,7 +889,7 @@ def get_black_white_global_thresholds(data_df: pd.DataFrame, rate):
 
     black_threshold = get_global_thresholds(black_data_df, rate)
     white_threshold = get_global_thresholds(white_data_df, rate)
-    
+
     return [black_threshold[0], white_threshold[0]]
 
 
@@ -802,11 +903,15 @@ def cross_predict():
     all_split_loss = []
 
     for index in all_range_list:
+        if index != cross_index:
+            continue
         train_index = [temp for temp in all_range_list if temp != index]
         test_index = [index]
 
-        train_data = get_range_data(train_index)
-        test_data = get_range_data(test_index)
+        # train_data = get_range_data(train_index)
+        # test_data = get_range_data(test_index)
+        train_data = get_subgroup_data(train_index)
+        test_data = get_subgroup_data(test_index)
         logger.warning(f"get_data ===== train:{train_data.shape}, test:{test_data.shape}")
 
         init_global_thresholds = get_global_thresholds(train_data, risk_rate)
@@ -828,6 +933,15 @@ def cross_predict():
         logger.warning(f"start build tree!")
         # 关键入口
         sbdt.build_tree(root_node, -1)
+        # 保存pickle
+        try:
+            tree_str = pickle.dumps(sbdt)
+            with open(pickle_file_name, "wb") as file:
+                file.write(tree_str)
+            logger.info(f"save pickle success!, memory: {round(sys.getsizeof(tree_str) / 1024 / 1024, 2)} MB")
+        except:
+            logger.error("save pickle error!")
+
         sbdt.get_tree_info()
         # sbdt.convert_format_to_dot()
         logger.warning("start predict loss!")
@@ -840,6 +954,7 @@ def cross_predict():
 
     save_result_file = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/{myLoss.name}_测试集5折交叉结果_v{version}.csv"
     save_df = pd.DataFrame(index=[risk_rate], data={
+        "test_valid_index": cross_index,
         "init_loss": np.sum(all_init_loss),
         "split_loss": np.sum(all_split_loss)
     })
@@ -850,26 +965,46 @@ def cross_predict():
 if __name__ == '__main__':
     risk_rate = float(sys.argv[1])
     split_type = int(sys.argv[2])
-
+    # # 五折交叉分批执行
+    cross_index = int(sys.argv[3])
+    # pool_nums = 10
+    # risk_rate = 0.75
+    # split_type = 1
+    # cross_index = 2
     """
     version = 1  drg top 20
     version = 2  all drg, ccs, demo3
     version = 3  all drg, ccs, demo3   概率变化修复bug
+    version = 4  all drg, ccs, demo3   三个损失计算的修正
+    version = 5  all drg, ccs, demo3   多线程计算，损失计算的修正v2
+    version = 6  eicu data
+    version = 7  eicu data  分批执行
+    version = 8   eciu cross3
+    version = 9  server7 数据
     """
-    version = 3
+    version = 8
     # drg_cols = "/home/liukang/Doc/disease_top_20.csv"
     # drg_list = pd.read_csv(drg_cols).squeeze().to_list()
-    my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
+    # my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
+    # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
 
-    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
-
+    # eicu
+    my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
+    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
+    pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
     loss_dict = {
         1: RiskAkiDiffLoss(name="额外牺牲"),
         2: RiskProbDiffLoss(name="概率变化"),
         3: RiskManDiffLoss(name=f"换手率")
     }
 
+    # 线程池
+    # executor = ThreadPoolExecutor(max_workers=pool_nums)
+
     myLoss = loss_dict[split_type]
 
     cross_predict()
 
+    # 读取pickle文件
+    # with open(pickle_file_name, "rb") as f:
+    #     obj = pickle.loads(f.read())

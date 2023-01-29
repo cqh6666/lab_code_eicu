@@ -548,6 +548,26 @@ def get_match_all_data_except_test_old(hos_id):
     return match_data_X, match_data_y
 
 
+def get_cross_data(test_valid_id):
+    """
+    获取五折交叉验证数据
+    :return:
+    """
+    data_path = f'/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/'
+    all_norm_data = pd.read_feather(os.path.join(data_path, f'all_norm_data.feather'))
+    test_data = pd.read_feather(os.path.join(data_path, f'test_valid_{test_valid_id}.feather'))
+    test_data_index = test_data.index.to_list()
+    all_data_index = all_norm_data.index.to_list()
+    train_data_index = list(set(all_data_index).difference(set(test_data_index)))
+    train_data = all_norm_data.loc[train_data_index]
+
+    train_data_y = train_data['aki_label']
+    train_data_x = train_data.drop(['aki_label'], axis=1)
+    test_data_y = test_data['aki_label']
+    test_data_x = test_data.drop(['aki_label'], axis=1)
+
+    return train_data_x, test_data_x, train_data_y, test_data_y
+
 
 def get_index_diff():
     res_new = get_hos_data_X_y(73)[1]
@@ -581,7 +601,7 @@ if __name__ == '__main__':
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
     # get_match_all_data_except_test(73)
-
+    data = get_each_hos_data_X_y(0)
     # version = 1
     # res_old = get_hos_data_X_y(73)
     print("done!")

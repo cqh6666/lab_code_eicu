@@ -184,9 +184,10 @@ if __name__ == '__main__':
     version = 3  匹配其他中心 相似性度量(from) 迁移(to)  用当前中心的10%样本
     
     version = 5  73中心匹配其他所有中心数据
+    version = 6  0中心匹配其他所有中心数据
     
     """
-    version = "5"
+    version = "6"
     # ================== save file name ====================
     save_path = f"./result/S04/{from_hos_id}/"
     create_path_if_not_exists(save_path)
@@ -210,7 +211,8 @@ if __name__ == '__main__':
 
     start_idx = 0
     final_idx = test_data_x.shape[0]
-    end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
+    # end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
+    end_idx = final_idx
 
     # 分批次进行个性化建模
     test_data_x = test_data_x.iloc[start_idx:end_idx]

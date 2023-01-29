@@ -24,11 +24,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, \
-    get_fs_hos_data_X_y, get_fs_match_all_data, create_path_if_not_exists, get_fs_each_hos_data_X_y, \
-    get_train_test_data_X_y, get_hos_data_X_y, get_match_all_data, get_each_hos_data_X_y, \
-    get_match_all_data_except_test_old, get_hos_data_X_y_old
-from lr_utils_api import get_transfer_weight, get_init_similar_weight
+from api_utils import covert_time_format, save_to_csv_by_row, create_path_if_not_exists, get_cross_data
+
 from email_api import send_success_mail, get_run_time
 from my_logger import logger
 
@@ -187,14 +184,42 @@ def process_test_data_match(train_data_y, test_data_x, test_data_y):
     return test_data_x.loc[good_list], test_data_y.loc[good_list]
 
 
+def global_train(train_iter=1000):
+    train_x_ft = train_data_x
+    test_x_ft = test_data_x
+
+    lr_all = LogisticRegression(max_iter=train_iter, solver="liblinear")
+    logger.warning("start global training...")
+    start_time = time.time()
+    lr_all.fit(train_x_ft, train_data_y)
+    y_predict = lr_all.decision_function(test_x_ft)
+    auc = roc_auc_score(test_data_y, y_predict)
+    run_time = round(time.time() - start_time, 2)
+
+    # save feature weight
+    weight_importance = lr_all.coef_[0]
+    abs_weight_importance = [abs(i) for i in weight_importance]
+    normalize_weight_importance = [i / sum(abs_weight_importance) for i in weight_importance]
+
+    print(
+        f'[global] - max_iter:{train_iter}, train_iter:{lr_all.n_iter_}, cost time: {run_time} s, auc: {auc}')
+
+    return normalize_weight_importance, weight_importance
+
+
 if __name__ == '__main__':
 
     run_start_time = time.time()
 
-    pool_nums = 8
+    pool_nums = 5
 
-    hos_id = int(sys.argv[1])
-    is_transfer = int(sys.argv[2])
+    hos_id = 0
+    is_transfer = 1
+    test_valid_id = int(sys.argv[1])
+
+    # 获得LR相似性度量和迁移度量
+    train_data_x, test_data_x, train_data_y, test_data_y = get_cross_data(test_valid_id=test_valid_id)
+    init_similar_weight, global_feature_weight = global_train()
 
     local_lr_iter = 100
     select = 10
@@ -202,25 +227,13 @@ if __name__ == '__main__':
     m_sample_weight = 0.01
 
     transfer_flag = "transfer" if is_transfer == 1 else "no_transfer"
-    other_hos_id = 167 if hos_id == 73 else 73
 
     init_psm_id = hos_id  # 初始相似性度量
-    is_train_same = True  # 训练样本数是否等样本量
-    is_match_all = True  # 是否匹配全局样本
+    transfer_id = init_psm_id
 
-    is_match_other = False  # 是否匹配其他中心样本
-
-    if is_match_all:
-        transfer_id = 0
-    else:
-        transfer_id = hos_id if not is_match_other else other_hos_id
-
-    assert not is_match_all & is_match_other, "不能同时匹配全局或其他中心的数据"
-
-    logger.warning("pid:{}， init_psm:{}, is_train_same:{}, is_match_all:{}, transfer_id:{}".format(os.getpid(), init_psm_id, is_train_same, is_match_all, transfer_id))
-    init_similar_weight = get_init_similar_weight(transfer_id)
-    global_feature_weight = get_transfer_weight(transfer_id)
-    logger.warning(f"init weight: {init_similar_weight[:5]}")
+    # init_similar_weight = get_init_similar_weight(transfer_id)
+    # global_feature_weight = get_transfer_weight(transfer_id)
+    # logger.warning(f"init weight: {init_similar_weight[:5]}")
 
     """
     version = 1  local_lr_iter = 100
@@ -279,8 +292,10 @@ if __name__ == '__main__':
     version = 13 J 使用新数据 v5, 权重 v5a 使用包含在匹配样本的测试样本  （保留）
     
     version = 14 LR个性化建模 不做特征选择 旧版本数据
+    
+    version = 30 LR个性化建模 做特征选择 新数据 0
     """
-    version = "14"
+    version = "30"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -288,22 +303,12 @@ if __name__ == '__main__':
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
     test_result_file_name = os.path.join(
-        save_path, f"S04_LR_test_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
+        save_path, f"S04_LR_test{test_valid_id}_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
-    train_data_x, test_data_x, train_data_y, test_data_y = get_hos_data_X_y_old(hos_id)
-
-    # 试试用重复的训练集会如何
-    # test_data_x = train_data_x.iloc[:1000]
-    # test_data_y = train_data_y.iloc[:1000]
+    # train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)
 
     match_data_len = int(select_ratio * train_data_x.shape[0])
-
-    # 改为匹配全局，修改为全部数据
-    if is_match_all:
-        # train_data_x, train_data_y = get_match_all_data_except_test_old(hos_id)
-        train_data_x, train_data_y = get_match_all_data()
-        logger.warning("匹配全局数据 - 局部训练集修改为全局训练数据...train_data_shape:{}".format(train_data_x.shape))
 
     # 保留 在匹配集合中存在的目标患者
     # test_data_x, test_data_y = process_test_data_match(train_data_y, test_data_x, test_data_y)
@@ -317,15 +322,12 @@ if __name__ == '__main__':
     #         "匹配数据 - 局部训练集修改为其他中心{}训练数据...train_data_shape:{}".format(other_hos_id, train_data_x.shape))
 
     # 是否等样本量匹配
-    if is_train_same:
-        assert not hos_id == 0, "训练全局数据不需要等样本匹配"
-        len_split = match_data_len
-    else:
-        len_split = int(select_ratio * train_data_x.shape[0])
+    len_split = int(select_ratio * train_data_x.shape[0])
 
     start_idx = 0
     final_idx = test_data_x.shape[0]
-    end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
+    # end_idx = final_idx if final_idx < 10000 else 10000  # 不要超过10000个样本
+    end_idx = final_idx
 
     # 分批次进行个性化建模
     test_data_x = test_data_x.iloc[start_idx:end_idx]
