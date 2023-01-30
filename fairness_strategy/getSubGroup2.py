@@ -36,14 +36,14 @@ class Constant:
 
     """
     score_column = "score_y"
-    # label_column = "Label"
-    # black_race_column = "Demo2_2"
-    # white_race_column = "Demo2_1"
+    label_column = "Label"
+    black_race_column = "Demo2_2"
+    white_race_column = "Demo2_1"
 
     # eicu
-    label_column = "aki_label"
-    black_race_column = "race_African American"
-    white_race_column = "race_Caucasian"
+    # label_column = "aki_label"
+    # black_race_column = "race_African American"
+    # white_race_column = "race_Caucasian"
 
     black_race = 1
     white_race = 1
@@ -908,10 +908,10 @@ def cross_predict():
         train_index = [temp for temp in all_range_list if temp != index]
         test_index = [index]
 
-        # train_data = get_range_data(train_index)
-        # test_data = get_range_data(test_index)
-        train_data = get_subgroup_data(train_index)
-        test_data = get_subgroup_data(test_index)
+        train_data = get_range_data(train_index)
+        test_data = get_range_data(test_index)
+        # train_data = get_subgroup_data(train_index)
+        # test_data = get_subgroup_data(test_index)
         logger.warning(f"get_data ===== train:{train_data.shape}, test:{test_data.shape}")
 
         init_global_thresholds = get_global_thresholds(train_data, risk_rate)
@@ -963,14 +963,14 @@ def cross_predict():
 
 
 if __name__ == '__main__':
-    risk_rate = float(sys.argv[1])
-    split_type = int(sys.argv[2])
+    # risk_rate = float(sys.argv[1])
+    # split_type = int(sys.argv[2])
     # # 五折交叉分批执行
-    cross_index = int(sys.argv[3])
+    # cross_index = int(sys.argv[3])
     # pool_nums = 10
-    # risk_rate = 0.75
-    # split_type = 1
-    # cross_index = 2
+    risk_rate = 0.75
+    split_type = 1
+    cross_index = 2
     """
     version = 1  drg top 20
     version = 2  all drg, ccs, demo3
@@ -983,14 +983,14 @@ if __name__ == '__main__':
     version = 9  server7 数据
     """
     version = 8
-    # drg_cols = "/home/liukang/Doc/disease_top_20.csv"
-    # drg_list = pd.read_csv(drg_cols).squeeze().to_list()
-    # my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
-    # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
+    drg_cols = "/home/liukang/Doc/disease_top_20.csv"
+    drg_list = pd.read_csv(drg_cols).squeeze().to_list()
+    my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
+    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
 
     # eicu
-    my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
-    data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
+    # my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
+    # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
     pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
     loss_dict = {
         1: RiskAkiDiffLoss(name="额外牺牲"),
