@@ -11,9 +11,9 @@ import pandas as pd
 
 disease_list=pd.read_csv('/home/liukang/Doc/disease_top_20.csv')
 
-race = ['white','black','non_white']
-race_id = ['Demo2_1','Demo2_2','Demo2_1']
-race_standard = [1,1,-1]
+race = ['white','black']
+race_id = ['Demo2_1','Demo2_2']
+race_standard = [1,1]
 race_count = pd.DataFrame()
 
 test_total = pd.DataFrame()
@@ -72,10 +72,9 @@ for race_num in range(len(race_id)):
         race_count.loc[disease_id, '{}_AKI_race%'.format(race_select)] = race_data_subgroup_AKI / data_race_all_subgroup_AKI
         race_count.loc[disease_id, '{}_AKI_subgroup%'.format(race_select)] = race_data_subgroup_AKI / subgroup_AKI
 
-race_count.to_csv('/home/liukang/Doc/fairness_analysis/race_count.csv')
-        
-        
-        
-        
-    
-    
+
+for disease_num in range(disease_list.shape[0]):
+    disease_id = disease_list.iloc[disease_num, 0]
+    race_count.loc[disease_id, 'white/black'] = race_count.loc[disease_id, 'white_num'] / race_count.loc[disease_id, 'black_num']
+
+race_count.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/race_count.csv')

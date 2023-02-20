@@ -75,7 +75,7 @@ for model in ['global','personal']:
         
         for race in race_list:
             
-            data_subgroup_true = test_total_all_subgroups.loc[:,race] == 1
+            data_subgroup_true = test_total_all_subgroups.loc[:,race] == 1  # 每个种族对应的群体
             data_subgroup = test_result_all_subgroups.loc[data_subgroup_true]
             data_subgroup_AKI_true = data_subgroup.loc[:,'Label'] == 1
             data_subgroup_AKI = data_subgroup.loc[data_subgroup_AKI_true]

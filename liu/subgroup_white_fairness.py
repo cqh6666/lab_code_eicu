@@ -20,7 +20,7 @@ result_name['subgroup'] = 'subgroup_proba'
 result_name['personal'] = 'update_1921_mat_proba'
 
 threshold_record = pd.DataFrame()
-threshold_used = ['500','1120','2241','self_10%','self_20%','self_%div2','self_%','self_race_10%','self_race_20%','self_race_%div2','self_race_%']
+threshold_used = ['500', '1120', '2241', 'self_5%', 'self_10%', 'self_20%', 'self_race_5%', 'self_race_10%', 'self_race_20%', 'self_race_div_25%', 'self_race_div_50%','self_race_div_100%']
 
 
 AKI_select_record = pd.DataFrame(index=threshold_used, columns=['global','subgroup','personal'])
@@ -83,7 +83,7 @@ for model in ['global','subgroup','personal']:
 
 #fairness compute  
 for disease_num in range(disease_list.shape[0]):
-    
+    # 已经筛选了白人群体
     data_subgroup = subgroup_result[disease_list.iloc[disease_num,0]]
     data_subgroup_AKI_true = data_subgroup.loc[:,'Label'] == 1
     data_subgroup_AKI = data_subgroup.loc[data_subgroup_AKI_true]
@@ -95,10 +95,10 @@ for disease_num in range(disease_list.shape[0]):
     data_all_race_subgroup_nonAKI = data_all_race_subgroup.loc[~data_all_race_subgroup_AKI_true]
     
     for model in ['global','subgroup','personal']:
-        
+        # 各亚组筛选了白人
         data_subgroup = data_subgroup.sort_values(result_name[model],ascending=False)
         data_subgroup.reset_index(drop=True, inplace=True)
-        
+        # 各亚组没有筛选白人
         data_all_race_subgroup = data_all_race_subgroup.sort_values(result_name[model],ascending=False)
         data_all_race_subgroup.reset_index(drop=True, inplace=True)
         
@@ -115,9 +115,9 @@ for disease_num in range(disease_list.shape[0]):
         for threshold_id in threshold_used:
             
             if threshold_id == 'self_10%':
-                
                 threshold_value = data_all_race_subgroup.loc[int(data_all_race_subgroup.shape[0] * 0.1),result_name[model]]
-                
+            elif threshold_id == 'self_5%':
+                threshold_value = data_all_race_subgroup.loc[int(data_all_race_subgroup.shape[0] * 0.05), result_name[model]]
             elif threshold_id == 'self_20%':
                 
                 threshold_value = data_all_race_subgroup.loc[int(data_all_race_subgroup.shape[0] * 0.2),result_name[model]]
@@ -129,27 +129,34 @@ for disease_num in range(disease_list.shape[0]):
             elif threshold_id == 'self_%':
                 
                 threshold_value = data_all_race_subgroup.loc[data_all_race_subgroup_AKI.shape[0]-1,result_name[model]]
-                
+
+            elif threshold_id == 'self_race_5%':
+                # 各亚组的白人群体的10%作为阈值点
+                threshold_value = data_subgroup.loc[int(data_subgroup.shape[0] * 0.05),result_name[model]]
             elif threshold_id == 'self_race_10%':
-                
+                # 各亚组的白人群体的10%作为阈值点
                 threshold_value = data_subgroup.loc[int(data_subgroup.shape[0] * 0.1),result_name[model]]
                 
             elif threshold_id == 'self_race_20%':
                 
                 threshold_value = data_subgroup.loc[int(data_subgroup.shape[0] * 0.2),result_name[model]]
-            
-            elif threshold_id == 'self_race_%div2':
-                
+
+            elif threshold_id == 'self_race_div_25%':
+                # 各亚组的白人群体的AKI患者前25%作为阈值点
+                threshold_value = data_subgroup.loc[int(data_subgroup_AKI.shape[0] / 4),result_name[model]]
+
+            elif threshold_id == 'self_race_div_50%':
+                # 各亚组的白人群体的AKI患者前50%作为阈值点
                 threshold_value = data_subgroup.loc[int(data_subgroup_AKI.shape[0] / 2),result_name[model]]
-            
-            elif threshold_id == 'self_race_%':
-                
+
+            elif threshold_id == 'self_race_div_100%':
+                # 各亚组的白人群体的AKI患者的人数作为阈值点
                 threshold_value = data_subgroup.loc[data_subgroup_AKI.shape[0]-1,result_name[model]]
                 
             else:
                 
                 threshold_value = threshold_record.loc['{}_{}'.format(model,threshold_id),'threshold']
-            
+            # 从筛选了白人的亚群群体种找大于阈值的样本
             data_subgroup_break_threshold = data_subgroup.loc[:,result_name[model]] >= threshold_value
             data_subgroup_select = data_subgroup.loc[data_subgroup_break_threshold]
             data_subgroup_not_select = data_subgroup.loc[~data_subgroup_break_threshold]
@@ -164,42 +171,84 @@ for disease_num in range(disease_list.shape[0]):
             equal_FPR_threshold = select_nonAKI_num / data_subgroup_nonAKI.shape[0]
             equal_odds_threshold = equal_TPR_threshold + (1-equal_FPR_threshold)
             
-            equal_PPV_threshold = select_AKI_num / data_subgroup_select.shape[0]
+            # equal_PPV_threshold = select_AKI_num / data_subgroup_select.shape[0]
             
             fairness_record['TPR_threshold_{}'.format(threshold_id)].loc[disease_list.iloc[disease_num,0],model] = equal_TPR_threshold
             fairness_record['FPR_threshold_{}'.format(threshold_id)].loc[disease_list.iloc[disease_num,0],model] = equal_FPR_threshold
             fairness_record['odds_threshold_{}'.format(threshold_id)].loc[disease_list.iloc[disease_num,0],model] = equal_odds_threshold
-            fairness_record['PPV_threshold_{}'.format(threshold_id)].loc[disease_list.iloc[disease_num,0],model] = equal_PPV_threshold
+            # fairness_record['PPV_threshold_{}'.format(threshold_id)].loc[disease_list.iloc[disease_num,0],model] = equal_PPV_threshold
             
+
+threshold_type_dict = {
+    "同等阈值": ['500', '1120', '2241'],
+    "同比例阈值": ['self_5%', 'self_10%', 'self_20%',],
+    "根据各亚组白人比例阈值": ['self_race_5%', 'self_race_10%', 'self_race_20%'],
+    "根据各亚组白人AKI数量比例阈值": ['self_race_div_25%', 'self_race_div_50%', 'self_race_div_100%']
+}
+plot_df = pd.DataFrame(columns=["threshold", "score", "建模策略", "threshold_type", "score_type", "drg"])
+for score_type in ['TPR']:
+    for threshold_type, thresholds in threshold_type_dict.items():
+        for threshold in thresholds:
+
+            cur_res_df = fairness_record[f"{score_type}_threshold_{threshold}"]
+
+            if threshold_type == "同比例阈值":
+                threshold = threshold[5:]
+            elif threshold_type == "根据各亚组白人AKI数量比例阈值":
+                threshold = threshold[14:]
+            elif threshold_type == "根据各亚组白人比例阈值":
+                threshold = threshold[10:]
+
+            cur_cols = cur_res_df.columns.tolist()
+            col_name_dict = {
+                "global": "GM",
+                "subgroup": "SM",
+                "personal": "PMTL"
+            }
+            cur_indexes = cur_res_df.index.tolist()
+
+            for col in cur_cols:
+                for index in cur_indexes:
+                    temp_df = pd.DataFrame(data={
+                        "threshold": [threshold],
+                        "threshold_type": [threshold_type],
+                        "score_type": [score_type],
+                        "drg": [index],
+                        "建模策略": [col_name_dict[col]],
+                        "score": [cur_res_df.loc[index, col]]
+                    })
+                    plot_df = pd.concat([plot_df, temp_df], axis=0, ignore_index=True)
+plot_df.to_csv(f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/lab_03_subgroup_race_{race}_top20_fairness_to_plot.csv")
+
 
 measure_avg_record = pd.DataFrame(columns=['global','subgroup','personal'])
 measure_std_record = pd.DataFrame(columns=['global','subgroup','personal'])
 measure_CV_record = pd.DataFrame(columns=['global','subgroup','personal'])
 for threshold_id in threshold_used:
-    
+
     for fairness_measure in ['TPR','FPR','odds','PPV']:
-        
+
         measure_select = '{}_threshold_{}'.format(fairness_measure,threshold_id)
         measure_avg_record.loc[measure_select,:] = fairness_record[measure_select].mean(axis=0)
         measure_std_record.loc[measure_select,:] = fairness_record[measure_select].std(axis=0)
         measure_CV_record.loc[measure_select,:] = measure_std_record.loc[measure_select,:] / measure_avg_record.loc[measure_select,:]
-        fairness_record[measure_select].to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_{}.csv'.format(race,measure_select))
-        
+        # fairness_record[measure_select].to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_{}.csv'.format(race,measure_select))
+
 for fairness_measure in ['TPR','FPR','odds']:
-    
+
     measure_select = '{}_no_threshold'.format(fairness_measure)
     measure_avg_record.loc[measure_select,:] = fairness_record[measure_select].mean(axis=0)
     measure_std_record.loc[measure_select,:] = fairness_record[measure_select].std(axis=0)
     measure_CV_record.loc[measure_select,:] = measure_std_record.loc[measure_select,:] / measure_avg_record.loc[measure_select,:]
-    fairness_record[measure_select].to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_{}.csv'.format(race,measure_select))
-    
+    # fairness_record[measure_select].to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_{}.csv'.format(race,measure_select))
+
 
 AKI_select_record = AKI_select_record / np.sum(subgroup_result_total['Label'])
 nonAKI_select_record = nonAKI_select_record / (subgroup_result_total.shape[0] - np.sum(subgroup_result_total['Label']))
 
 
-measure_avg_record.to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_avg.csv'.format(race))
-measure_std_record.to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_std.csv'.format(race))
-measure_CV_record.to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_CV.csv'.format(race))
-AKI_select_record.to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_AKI_num.csv'.format(race))
-nonAKI_select_record.to_csv('/home/liukang/Doc/fairness_analysis/subgroup_top20_{}_fairness_nonAKI_num.csv'.format(race))
+measure_avg_record.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/subgroup_top20_{}_fairness_avg.csv'.format(race))
+measure_std_record.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/subgroup_top20_{}_fairness_std.csv'.format(race))
+measure_CV_record.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/subgroup_top20_{}_fairness_CV.csv'.format(race))
+AKI_select_record.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/subgroup_top20_{}_fairness_AKI_num.csv'.format(race))
+nonAKI_select_record.to_csv('/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/subgroup_top20_{}_fairness_nonAKI_num.csv'.format(race))

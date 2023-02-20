@@ -32,10 +32,17 @@ def aurcc_calculator(target_score,baseline_score):
     return aurcc
 
 def fairness_with_view_only(score_used,subgroup_used,view_id_used):
+    """
+
+    :param score_used:
+    :param subgroup_used: 不同亚组（黑人和白人）
+    :param view_id_used: 用来找到视图（特征）对应的索引位置
+    :return:
+    """
     
     #select score in view only
     #score in subgroup
-    subgroup_true = all_subgroup_data.loc[:,subgroup_used] >= 1
+    subgroup_true = all_subgroup_data.loc[:,subgroup_used] >= 1  # 取得某个种族的测试记录
     AKI_true = all_subgroup_data.loc[:,'Label'] == 1
     subgroup_final_true = subgroup_true & AKI_true
     subgroup_score_used = score_used.loc[subgroup_final_true]
@@ -60,8 +67,7 @@ def fairness_with_view_only(score_used,subgroup_used,view_id_used):
     remain_predict_score = remain_score_used_fs['predict_score'].tolist()
     
     subgroup_aurcc = aurcc_calculator(target_score=subgroup_predict_score,baseline_score=remain_predict_score)
-    
-    
+
     #select score drop view only
     drop_columns = selected_column_names
     subgroup_score_used_noView = subgroup_score_used.drop(drop_columns, axis=1)
@@ -140,8 +146,7 @@ for data_num in range(1,5):
     global_final_weight = np.append(global_coef,global_intercept)
     global_score = test_original * global_final_weight
     global_score_record = pd.concat([global_score_record,global_score])
-    
-    
+
     #read personal coef_ and intercept and result
     person_coef = pd.read_csv('/home/liukang/Doc/No_Com/test_para/weight_Ma_old_Nor_Gra_01_001_0_005-{}_50.csv'.format(data_num)) 
     person_result = pd.read_csv('/home/liukang/Doc/No_Com/test_para/Ma_old_Nor_Gra_01_001_0_005-{}_50.csv'.format(data_num))
@@ -158,7 +163,7 @@ personal_score_record.reset_index(drop=True,inplace=True)
 
 all_subgroup_feature_data = test_total.loc[:,select_subgroup_data_feature]
 all_subgroup_data_sum = all_subgroup_feature_data.sum(axis=1)
-all_subgroup_data_true = all_subgroup_data_sum >= select_subgroup_data_feature_standard
+all_subgroup_data_true = all_subgroup_data_sum >= select_subgroup_data_feature_standard  # 排除非黑人白人的种族的测试记录
 all_subgroup_data = test_total.loc[all_subgroup_data_true]
 
 all_subgroup_global_score_record = global_score_record.loc[all_subgroup_data_true]
@@ -186,8 +191,8 @@ for view_id in range(len(view_name)):
         view_aurcc_result.loc[subgroup,'person_view_only'] = person_view_aurcc
         view_aurcc_result.loc[subgroup,'person_noview_only'] = person_noview_aurcc
         
-    view_avg_AKI_score_result.to_csv('/home/liukang/Doc/fairness_analysis/{}_AKI_avg_score_w_or_wo_{}.csv'.format(fairness_target,view_name[view_id]))
-    view_aurcc_result.to_csv('/home/liukang/Doc/fairness_analysis/{}_aurcc_w_or_wo_{}.csv'.format(fairness_target,view_name[view_id]))
+    # view_avg_AKI_score_result.to_csv('/home/liukang/Doc/fairness_analysis/{}_AKI_avg_score_w_or_wo_{}.csv'.format(fairness_target,view_name[view_id]))
+    # view_aurcc_result.to_csv('/home/liukang/Doc/fairness_analysis/{}_aurcc_w_or_wo_{}.csv'.format(fairness_target,view_name[view_id]))
     
     if fairness_target == 'subgroups':
         
@@ -204,4 +209,4 @@ for view_id in range(len(view_name)):
         view_result_record.loc[view_name[view_id],'AKI_score_global_view_diff':'AKI_score_person_noview_diff'] = np.array(view_avg_AKI_score_result.iloc[0,:] - view_avg_AKI_score_result.iloc[1,:])
         view_result_record.loc[view_name[view_id],'AURCC_global_view_diff':'AURCC_person_noview_diff'] = np.array(view_aurcc_result.iloc[0,:] - view_aurcc_result.iloc[1,:])
         
-view_result_record.to_csv('/home/liukang/Doc/fairness_analysis/{}_aurcc_AKIscore_change.csv'.format(fairness_target))
+# view_result_record.to_csv('/home/liukang/Doc/fairness_analysis/{}_aurcc_AKIscore_change.csv'.format(fairness_target))
