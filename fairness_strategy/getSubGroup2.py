@@ -230,7 +230,7 @@ class SubGroupDecisionTree:
         # 根节点
         self.root_node = None
         # 根节点的loss（未做亚组划分的loss）
-        self.root_loss = 0
+        self.root_loss = None
         self.split_plus_loss = 0
 
         self.node_count = -1

@@ -19,8 +19,8 @@ result_name['subgroup'] = 'subgroup_proba'
 result_name['personal'] = 'update_1921_mat_proba'
 
 threshold_record = pd.DataFrame()
-threshold_used = ['500','1120','2241','self_10%','self_20%','self_%div2','self_%']
-
+# threshold_used = ['500','1120','2241','self_10%','self_20%','self_%div2','self_%']
+threshold_used = ['self_race_div_25%', 'self_race_div_50%','self_race_div_100%']
 
 AKI_select_record = pd.DataFrame(index=threshold_used, columns=['global','subgroup','personal'])
 nonAKI_select_record = pd.DataFrame(index=threshold_used ,columns=['global','subgroup','personal'])
