@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 
 
-# disease_list = pd.read_csv('/home/liukang/Doc/disease_top_20.csv').squeeze().to_list()
+disease_list = pd.read_csv('/home/liukang/Doc/disease_top_20.csv').squeeze().to_list()
 my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
 
 race_list = ['Demo2_1', 'Demo2_2']

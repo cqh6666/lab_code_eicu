@@ -35,15 +35,10 @@ for subgroup_num in range(disease_list.shape[0]):
 
 
 for race_num in range(len(race_id)):
-    
     race_select = race[race_num]
-    
     if race_standard[race_num] == -1:
-        
         data_race_true = test_total.loc[:,race_id[race_num]] == 0
-    
     else:
-        
         data_race_true = test_total.loc[:,race_id[race_num]] == race_standard[race_num]  # 对应种族群体的条件
     
     data_race_select = test_total.loc[data_race_true].copy()  # 对应种族的所有样本集

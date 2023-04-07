@@ -67,7 +67,7 @@ select_cond = (my_data_df["race_type"] == "black") & (my_data_df["thres_type"] =
 plot_df = my_data_df[select_cond]
 axesSub3 = sns.barplot(data=plot_df, x="threshold", y="score", hue="build_type", ax=ax[0])
 axesSub3.set_title("黑人群体患者的TPR比较")
-axesSub3.set_xlabel("根据黑人群体的AKI数量选取Top-K%")
+axesSub3.set_xlabel("根据各入院原因亚组AKI数量选取Top-K%")
 axesSub3.set_ylabel("召回率(TPR)")
 axesSub3.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
 axesSub3.legend(loc='upper left')
@@ -85,7 +85,7 @@ select_cond = (my_data_df["race_type"] == "white") & (my_data_df["thres_type"] =
 plot_df = my_data_df[select_cond]
 axesSub4 = sns.barplot(data=plot_df, x="threshold", y="score", hue="build_type", ax=ax[1])
 axesSub4.set_title("白人群体患者的TPR比较")
-axesSub4.set_xlabel("根据白人群体的AKI数量选取Top-K%")
+axesSub4.set_xlabel("根据各入院原因亚组AKI数量选取Top-K%")
 axesSub4.set_ylabel("召回率(TPR)")
 axesSub4.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
 axesSub4.legend(loc='upper left')

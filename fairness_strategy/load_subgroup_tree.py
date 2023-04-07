@@ -2,7 +2,7 @@
 """
 -------------------------------------------------
    File Name:     getSubGroup
-   Description:   ...
+   Description:   loadTree
    Author:        cqh
    date:          2022/12/23 20:39
 -------------------------------------------------
@@ -20,9 +20,9 @@ import numpy as np
 
 from api_utils import save_to_csv_by_row
 from get_failness_data import get_range_data
+from get_eicu_dataset import get_subgroup_data
 from my_logger import logger
 import warnings
-
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
@@ -55,7 +55,6 @@ class SplitLoss:
     """
     Loss计算的基类
     """
-
     def __init__(self, name):
         self.name = name
 
@@ -94,7 +93,6 @@ class RiskProbDiffLoss(SplitLoss):
         new_sum = new_black_prob_sum + new_white_prob_sum
 
         return round(old_sum - new_sum, 4)
-
 
 class RiskAkiDiffLoss(SplitLoss):
 
@@ -161,8 +159,7 @@ class RiskManDiffLoss(SplitLoss):
 
 class SubGroupNode:
     def __init__(self, thresholds, depth, data_index, pre_split_features_dict={}, split_loss=0,
-                 recall_nums=None, threshold_nums=None, label_nums=None, recall_rate=None, split_feature_name=None,
-                 split_feature_value=None):
+                 recall_nums=None, threshold_nums=None, label_nums=None, recall_rate=None, split_feature_name=None, split_feature_value=None):
         """
         亚组节点
         :param thresholds: 当前节点的阈值 [黑人, 白人]
@@ -233,7 +230,7 @@ class SubGroupDecisionTree:
         # 根节点
         self.root_node = None
         # 根节点的loss（未做亚组划分的loss）
-        self.root_loss = 0
+        self.root_loss = None
         self.split_plus_loss = 0
 
         self.node_count = -1
@@ -508,10 +505,8 @@ class SubGroupDecisionTree:
             return recall_result_dict, [black_threshold, white_threshold], 0
 
         # 将数据集先分成黑人和白人，再降序排序
-        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(
-            by=Constant.score_column, ascending=False)
-        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(
-            by=Constant.score_column, ascending=False)
+        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(by=Constant.score_column, ascending=False)
+        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(by=Constant.score_column, ascending=False)
 
         while black_recall < white_recall:
             black_threshold, black_add_nums = find_next_black_threshold(black_data_df, black_threshold)
@@ -594,13 +589,12 @@ class SubGroupDecisionTree:
                         all_dot_link_str += dot_link_str.format(node_index, tmp.index, tmp.split_feature_value)
 
         all_dot_str = dot_begin_str + all_dot_explain_str + all_dot_edge_str + all_dot_link_str + dot_end_str
-        with open(
-                f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/sbdt_tree_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.dot",
-                "w") as f:
+
+        with open(f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/tree_{self.splitLoss.name}.dot", "w") as f:
             f.write(all_dot_str)
             logger.info("save as dot success!")
 
-    def stop_to_split_condition(self, node, min_aki_nums=5, min_nums=20):
+    def stop_to_split_condition(self, node, lower_threshold=5):
         """
         :param lower_threshold:
         :param node:
@@ -620,26 +614,19 @@ class SubGroupDecisionTree:
 
         cur_data_df = self.get_cur_node_data_df(node)
 
-        if cur_data_df.shape[0] < min_nums:
-            return True
-
-        cur_data_aki_df = cur_data_df[cur_data_df[Constant.label_column] == 1]
-        if cur_data_aki_df.shape[0] < min_aki_nums:
-            return True
-
         # 将数据集先分成黑人和白人，再降序排序
-        # black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(by=Constant.score_column, ascending=False)
-        # white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(by=Constant.score_column, ascending=False)
-        #
-        # # 获取黑人和白人AKI为1的部分
-        # black_label_true = (black_data_df[Constant.label_column] == 1)
-        # white_label_true = (white_data_df[Constant.label_column] == 1)
-        # # 获取黑人和白人AKI=1的人数
-        # black_label_nums, white_label_nums = np.sum(black_label_true), np.sum(white_label_true)
-        #
-        # # 如果黑人或白人AKI人数<= 一定阈值
-        # if black_label_nums <= lower_threshold or white_label_nums <= lower_threshold:
-        #     return True
+        black_data_df = cur_data_df[cur_data_df[Constant.black_race_column] == Constant.black_race].sort_values(by=Constant.score_column, ascending=False)
+        white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race].sort_values(by=Constant.score_column, ascending=False)
+
+        # 获取黑人和白人AKI为1的部分
+        black_label_true = (black_data_df[Constant.label_column] == 1)
+        white_label_true = (white_data_df[Constant.label_column] == 1)
+        # 获取黑人和白人AKI=1的人数
+        black_label_nums, white_label_nums = np.sum(black_label_true), np.sum(white_label_true)
+
+        # 如果黑人或白人AKI人数<= 一定阈值
+        if black_label_nums <= lower_threshold or white_label_nums <= lower_threshold:
+            return True
 
         return False
 
@@ -677,8 +664,7 @@ class SubGroupDecisionTree:
         for leaf_node in leaf_node_list:
             cur_index = leaf_node.index
             cur_subgroup_data_df = test_data_df.loc[leaf_index_df['leaf_index'] == cur_index, :]
-            split_all_loss += self.splitLoss.cal_loss(cur_subgroup_data_df, self.global_thresholds,
-                                                      leaf_node.thresholds)
+            split_all_loss += self.splitLoss.cal_loss(cur_subgroup_data_df, self.global_thresholds, leaf_node.thresholds)
 
         return root_loss, split_all_loss
 
@@ -858,8 +844,7 @@ def get_best_split_feature(cur_loss_dict: dict, cur_node):
 
     if min_loss >= parent_split_loss:
         cur_node.set_leaf_node()
-        logger.warning(
-            f"{cur_node.depth}-[index:{cur_node.index}]-当前节点分亚组后得到的损失之和（{min_loss}）大于等于父节点，不再继续分亚组...")
+        logger.warning(f"{cur_node.depth}-[index:{cur_node.index}]-当前节点分亚组后得到的损失之和（{min_loss}）大于等于父节点，不再继续分亚组...")
         return None
 
     logger.warning(f"{cur_node.depth}-[index:{cur_node.index}]-选出 {min_feature} 作为下一个分割特征...")
@@ -910,6 +895,7 @@ def get_black_white_global_thresholds(data_df: pd.DataFrame, rate):
     return [black_threshold[0], white_threshold[0]]
 
 
+
 def cross_predict():
     # train_data = load_my_data(data_file_name.format("train"))
     # test_data = load_my_data(data_file_name.format("test"))
@@ -924,10 +910,10 @@ def cross_predict():
         train_index = [temp for temp in all_range_list if temp != index]
         test_index = [index]
 
-        train_data = get_range_data(train_index)
-        test_data = get_range_data(test_index)
-        # train_data = get_subgroup_data(train_index)
-        # test_data = get_subgroup_data(test_index)
+        # train_data = get_range_data(train_index)
+        # test_data = get_range_data(test_index)
+        train_data = get_subgroup_data(train_index)
+        test_data = get_subgroup_data(test_index)
         logger.warning(f"get_data ===== train:{train_data.shape}, test:{test_data.shape}")
 
         init_global_thresholds = get_global_thresholds(train_data, risk_rate)
@@ -959,7 +945,7 @@ def cross_predict():
             logger.error("save pickle error!")
 
         sbdt.get_tree_info()
-        sbdt.convert_format_to_dot()
+        # sbdt.convert_format_to_dot()
         logger.warning("start predict loss!")
         init_loss, split_loss = sbdt.predict(test_data)
 
@@ -968,7 +954,7 @@ def cross_predict():
 
         logger.info(f"{init_loss},{split_loss} done!")
 
-    save_result_file = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/{myLoss.name}_test_cross_result_v{version}.csv"
+    save_result_file = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/{myLoss.name}_测试集5折交叉结果_v{version}.csv"
     save_df = pd.DataFrame(index=[risk_rate], data={
         "test_valid_index": cross_index,
         "init_loss": np.sum(all_init_loss),
@@ -979,14 +965,14 @@ def cross_predict():
 
 
 if __name__ == '__main__':
-    risk_rate = float(sys.argv[1])
-    split_type = int(sys.argv[2])
+    # risk_rate = float(sys.argv[1])
+    # split_type = int(sys.argv[2])
     # # 五折交叉分批执行
-    cross_index = int(sys.argv[3])
+    # cross_index = int(sys.argv[3])
     # pool_nums = 10
-    # risk_rate = 0.8
-    # split_type = 1
-    # cross_index = 5
+    risk_rate = 0.85
+    split_type = 1
+    cross_index = 3
     """
     version = 1  drg top 20
     version = 2  all drg, ccs, demo3
@@ -998,9 +984,8 @@ if __name__ == '__main__':
     version = 8   eciu cross3
     version = 9  server7 数据
     version = 10  eicu 种族反过来
-    version = 11  server7 数据无法读取 只能重新跑一遍  0.8, 1/2/3, 5
     """
-    version = 11
+    version = 9
     drg_cols = "/home/liukang/Doc/disease_top_20.csv"
     drg_list = pd.read_csv(drg_cols).squeeze().to_list()
     my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
@@ -1009,6 +994,7 @@ if __name__ == '__main__':
     # eicu
     # my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
     # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
+
     pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
     loss_dict = {
         1: RiskAkiDiffLoss(name="额外牺牲"),
@@ -1021,9 +1007,9 @@ if __name__ == '__main__':
 
     myLoss = loss_dict[split_type]
 
-    cross_predict()
+    # cross_predict()
 
     # 读取pickle文件
     with open(pickle_file_name, "rb") as f:
         obj = pickle.loads(f.read())
-        logger.info(f"{pickle_file_name} 读取pickle文件成功!")
+        print(obj)
