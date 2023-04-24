@@ -85,15 +85,32 @@ class RiskProbDiffLoss(SplitLoss):
         black_score = black_data_df[Constant.score_column]
         white_score = white_data_df[Constant.score_column]
 
-        old_black_prob_sum = black_score[black_score >= old_thresholds[0]].sum()
-        old_white_prob_sum = white_score[white_score >= old_thresholds[1]].sum()
-        new_black_prob_sum = black_score[black_score >= new_thresholds[0]].sum()
-        new_white_prob_sum = white_score[white_score >= new_thresholds[1]].sum()
+        black_change_score = black_score[(black_score >= new_thresholds[0]) & (black_score < old_thresholds[0])]
+        white_change_score = white_score[(white_score >= old_thresholds[1]) & (white_score < new_thresholds[1])]
 
-        old_sum = old_black_prob_sum + old_white_prob_sum
-        new_sum = new_black_prob_sum + new_white_prob_sum
+        len_black_change_score = len(black_change_score)
+        len_white_change_score = len(white_change_score)
 
-        return round(old_sum - new_sum, 4)
+        if len_black_change_score > len_white_change_score:
+            # 如果黑人降低了比白人还多，就需要进行截取
+            black_change_score_sum = np.sum(black_change_score[:len_white_change_score])
+            white_change_score_sum = np.sum(white_change_score)
+        else:
+            black_change_score_sum = np.sum(black_change_score)
+            white_change_score_sum = np.sum(white_change_score)
+
+        return round(white_change_score_sum - black_change_score_sum, 4)
+
+        # 有bug
+        # old_black_prob_sum = black_score[black_score >= old_thresholds[0]].sum()
+        # old_white_prob_sum = white_score[white_score >= old_thresholds[1]].sum()
+        # new_black_prob_sum = black_score[black_score >= new_thresholds[0]].sum()
+        # new_white_prob_sum = white_score[white_score >= new_thresholds[1]].sum()
+        #
+        # old_sum = old_black_prob_sum + old_white_prob_sum
+        # new_sum = new_black_prob_sum + new_white_prob_sum
+
+        # return round(old_sum - new_sum, 4)
 
 
 class RiskAkiDiffLoss(SplitLoss):
@@ -117,6 +134,13 @@ class RiskAkiDiffLoss(SplitLoss):
             [Constant.score_column, Constant.label_column]]
         white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race][
             [Constant.score_column, Constant.label_column]]
+
+        # # 优化
+        # # black_change_aki_nums = black_data_df[new_thresholds[0] <= black_data_df[Constant.score_column] < old_thresholds[0]].shape[0]
+        # black_change_aki_nums = black_data_df[(black_data_df[Constant.score_column] >= new_thresholds[0]) & (black_data_df[Constant.score_column] < old_thresholds[0])].shape[0]
+        # # white_change_aki_nums = white_data_df[old_thresholds[1] <= white_data_df[Constant.score_column] < new_thresholds[1]].shape[0]
+        # white_change_aki_nums = white_data_df[(white_data_df[Constant.score_column] >= old_thresholds[1]) & (white_data_df[Constant.score_column] < new_thresholds[1])].shape[0]
+        # return - black_change_aki_nums - white_change_aki_nums
 
         old_black_aki_nums = black_data_df[black_data_df[Constant.score_column] >= old_thresholds[0]].shape[0]
         old_white_aki_nums = white_data_df[white_data_df[Constant.score_column] >= old_thresholds[1]].shape[0]
@@ -147,16 +171,18 @@ class RiskManDiffLoss(SplitLoss):
         # 白种人
         white_data_df = cur_data_df[cur_data_df[Constant.white_race_column] == Constant.white_race]
 
-        old_white_threshold = old_thresholds[1]
-        new_white_threshold = new_thresholds[1]
+        white_change_count = white_data_df[(white_data_df[Constant.score_column] >= old_thresholds[1]) & (white_data_df[Constant.score_column] < new_thresholds[1])].shape[0]
+        return white_change_count
+        # old_white_threshold = old_thresholds[1]
+        # new_white_threshold = new_thresholds[1]
+        #
+        # score_values = white_data_df[Constant.score_column].values
+        # miss_count = 0
+        # for score in score_values:
+        #     if old_white_threshold <= score < new_white_threshold:
+        #         miss_count += 1
 
-        score_values = white_data_df[Constant.score_column].values
-        miss_count = 0
-        for score in score_values:
-            if old_white_threshold <= score < new_white_threshold:
-                miss_count += 1
-
-        return miss_count
+        # return miss_count
 
 
 class SubGroupNode:
@@ -228,7 +254,7 @@ class SubGroupDecisionTree:
         self.select_features = select_features
         self.splitLoss = splitLoss
         self.global_thresholds = global_thresholds
-        self.max_depth = 15
+        self.max_depth = 8
 
         # 根节点
         self.root_node = None
@@ -595,7 +621,7 @@ class SubGroupDecisionTree:
 
         all_dot_str = dot_begin_str + all_dot_explain_str + all_dot_edge_str + all_dot_link_str + dot_end_str
         with open(
-                f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/sbdt_tree_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.dot",
+                f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/dot/sbdt_tree_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.dot",
                 "w") as f:
             f.write(all_dot_str)
             logger.info("save as dot success!")
@@ -774,7 +800,7 @@ def cal_black_white_recall(cur_data_df: pd.DataFrame, thresholds: list):
 
 def find_next_black_threshold(black_data_df, black_threshold):
     """
-    找到下一个黑人阈值 阈值下降
+    找到下一个阈值 阈值下降
     未被选中的最高风险的AKI黑人对应的分数
     :param black_data_df: 黑人数据集（已经按预测概率降序排序）
     :param black_threshold: 黑人风险阈值 已经排好序
@@ -782,6 +808,28 @@ def find_next_black_threshold(black_data_df, black_threshold):
         thresholds 新的阈值
         add_nums 黑人阈值下降后 新增的风险人数
     """
+    # black_break_df = black_data_df[black_data_df[Constant.score_column] >= black_threshold].index.to_list()[-1]
+    # before_index = black_break_df.index.to_list()[-1]
+    #
+    # black_aki_df = black_data_df[black_data_df[Constant.label_column] == 1]
+    #
+    # new_black_threshold = black_threshold  # 新的阈值
+    # add_nums = 0  # 受影响人数
+    #
+    # for cur_index in black_aki_df.index.to_list():
+    #     cur_score = black_aki_df.loc[cur_index, Constant.score_column]
+    #     if cur_score < black_threshold:
+    #         new_black_threshold = cur_score
+    #         add_nums = cur_index - before_index
+    #         break
+    #
+    # # 如果无法找到下一个AKI阈值，就直接下降一个阈值即可
+    # if new_black_threshold == black_threshold:
+    #
+    #     logger.warning("当前节点的黑人阈值无法继续下降...")
+    #
+    # return new_black_threshold, add_nums
+
     black_score = black_data_df[Constant.score_column].values
     len_black_score = len(black_score)
 
@@ -978,6 +1026,46 @@ def cross_predict():
     logger.warning(f"save success! - {save_result_file}")
 
 
+def get_top20_data():
+    all_index = [1,2,3,4,5]
+    data_subgroup = pd.DataFrame()
+    all_data_df = get_range_data(all_index)
+    logger.info(f"get top-20 {all_data_df.shape} !")
+
+    for disease_id_name in drg_list:
+        data_subgroup = pd.concat([data_subgroup, all_data_df[all_data_df.loc[:, disease_id_name] == 1]], axis=0)
+    data_subgroup.reset_index(drop=True, inplace=True)
+
+    return data_subgroup
+
+
+def subgroup_top20_test_valid():
+    """
+    测试20个亚组的代价减少程度
+    :return:
+    """
+    result_df = pd.DataFrame()
+    # 先获得top20
+    data_subgroup_top20 = get_top20_data()
+    # 读取pickle文件
+    with open(pickle_file_name, "rb") as f:
+        obj = pickle.loads(f.read())
+        logger.info(f"{pickle_file_name} 读取pickle文件成功!")
+    init_loss, split_loss = obj.predict(data_subgroup_top20)
+    result_df.loc["top-20", "init_loss"] = init_loss
+    result_df.loc["top-20", "split_loss"] = split_loss
+
+    print("top20", init_loss, split_loss)
+    print("=======================================================")
+    for disease_id_name in drg_list:
+        cur_data_df = data_subgroup_top20[data_subgroup_top20.loc[:, disease_id_name] == 1]
+        init_loss, split_loss = obj.predict(cur_data_df)
+        result_df.loc[disease_id_name, "init_loss"] = init_loss
+        result_df.loc[disease_id_name, "split_loss"] = split_loss
+        print(disease_id_name, init_loss, split_loss)
+    result_df.to_csv(f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/top_20/sbdt_top20_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.csv")
+    logger.info("save top-20 result success!")
+
 if __name__ == '__main__':
     risk_rate = float(sys.argv[1])
     split_type = int(sys.argv[2])
@@ -999,8 +1087,12 @@ if __name__ == '__main__':
     version = 9  server7 数据
     version = 10  eicu 种族反过来
     version = 11  server7 数据无法读取 只能重新跑一遍  0.8, 1/2/3, 5
+    version = 12  server7 缺少了性别属性(2列) 增加且重新跑  0.8/0.85/0.9 1/2/3 1/2/3/4/5
+    version = 13  server7 优化了计算方式，更简洁明了，概率变化优化避免出现负数
+    version = 14  AKI_Loss优化有bug max_depth=8
+    version = 15  AKI_Loss优化有bug max_depth=8（增加性别属性） 同时增加top20的测试
     """
-    version = 11
+    version = 15
     drg_cols = "/home/liukang/Doc/disease_top_20.csv"
     drg_list = pd.read_csv(drg_cols).squeeze().to_list()
     my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
@@ -1009,7 +1101,7 @@ if __name__ == '__main__':
     # eicu
     # my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
     # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
-    pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
+    pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/pickle/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
     loss_dict = {
         1: RiskAkiDiffLoss(name="额外牺牲"),
         2: RiskProbDiffLoss(name="概率变化"),
@@ -1024,6 +1116,9 @@ if __name__ == '__main__':
     cross_predict()
 
     # 读取pickle文件
-    with open(pickle_file_name, "rb") as f:
-        obj = pickle.loads(f.read())
-        logger.info(f"{pickle_file_name} 读取pickle文件成功!")
+    # with open(pickle_file_name, "rb") as f:
+    #     obj = pickle.loads(f.read())
+    #     logger.info(f"{pickle_file_name} 读取pickle文件成功!")
+    # print(obj)
+
+    subgroup_top20_test_valid()

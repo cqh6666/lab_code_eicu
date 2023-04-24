@@ -59,3 +59,5 @@ with open("my_tree_test.pkl", "wb") as file:
     print(sys.getsizeof(tree_str) / 1024 / 1024)
 with open("my_tree_test.pkl", "rb") as f:
     obj = pickle.loads(f.read())
+
+print(obj.depth)

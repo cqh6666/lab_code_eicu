@@ -18,7 +18,7 @@ test_df = pd.read_csv('/home/liukang/Doc/valid_df/test_{}.csv'.format(1))
 columns = test_df.columns
 
 # Demo
-demo_cols = ["Demo1"]
+demo_cols = ["Demo1", "Demo3_1", "Demo3_2"]
 
 # Drg
 drg_cols = []

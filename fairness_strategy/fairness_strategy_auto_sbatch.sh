@@ -6,7 +6,7 @@ curStamp=$((timeStamp*1000+10#`date "+%N"`/1000000)) #将current转换为时间�
 #all_risk_rate=(0.85)
 #all_loss_type=(1 2 3)
 #valid_array=(1 2 3 4 5)
-all_risk_rate=(0.9)
+all_risk_rate=(0.85)
 all_loss_type=(1 2 3)
 valid_array=(1 2 3 4 5)
 for risk_rate in ${all_risk_rate[@]}

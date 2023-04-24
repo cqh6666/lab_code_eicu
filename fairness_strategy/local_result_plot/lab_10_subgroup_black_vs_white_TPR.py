@@ -37,10 +37,10 @@ axs = sns.barplot(x="种族之间的公平性(白人TPR-黑人TPR)", y="各入�
 axs.set_xlabel('')
 axs.set_ylabel('')
 axs.xaxis.tick_top()
-axs.set_title("种族之间的公平性(白人TPR-黑人TPR)", fontsize=15)
+axs.set_title("种族群体之间的公平性(多数-少数)", fontsize=18)
 # axs.set_xticks(np.arange(-0.8, 0.6, 0.1))
 # plt.xticks(rotation=90)
-plt.savefig('lab_10_result.jpg', dpi=1500, bbox_inches ="tight")
+plt.savefig('lab_10_result_4-11.jpg', dpi=600, bbox_inches="tight")
 
 plt.show()
 

@@ -127,7 +127,7 @@ total_drg_result = pd.DataFrame()
 plt.rc('font',family='SimHei')
 
 fig, axes = plt.subplots(5, 4, constrained_layout=True, figsize=(20, 30))
-plt.subplots_adjust(left=0.5, bottom=0.5, wspace=0.55, hspace=0.55) #调整子图间距
+plt.subplots_adjust(left=0.5, bottom=0.5, wspace=0.6, hspace=0.6) #调整子图间距
 
 axes_list = []
 disease_index = 0
@@ -150,14 +150,14 @@ for row in range(axes.shape[0]):
 
         axes[row][col].set_ylim([-0.05, 1.05])
         axes[row][col].legend(loc="lower right")
-        axes[row][col].set_title('{}'.format(disease_list.iloc[disease_index, 1]), fontsize=16)
+        axes[row][col].set_title('{}'.format(disease_list.iloc[disease_index, 1]), fontsize=20)
 
         print(f"add subplot[{row}, {col}] success!, subgroup name: [{disease_list.iloc[disease_index, 1]}]")
         # 下一个亚组
         disease_index += 1
 
 plt.tight_layout()
-plt.savefig("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/calibration/calibration_quantile_Drg_top20_3-25.png", dpi=200)
+plt.savefig("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/local_result/calibration/calibration_quantile_Drg_top20_4-11.png", dpi=200)
 plt.show()
 
 print("done!")
