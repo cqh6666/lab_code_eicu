@@ -24,7 +24,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api_utils import covert_time_format, save_to_csv_by_row, create_path_if_not_exists, get_cross_data
+from api_utils import covert_time_format, save_to_csv_by_row, create_path_if_not_exists, get_cross_data_with_drg
 
 from email_api import send_success_mail, get_run_time
 from my_logger import logger
@@ -211,14 +211,15 @@ if __name__ == '__main__':
 
     run_start_time = time.time()
 
-    pool_nums = 5
+    pool_nums = 2
 
     hos_id = 0
     is_transfer = 1
     test_valid_id = int(sys.argv[1])
+    # test_valid_id = 1
 
     # 获得LR相似性度量和迁移度量
-    train_data_x, test_data_x, train_data_y, test_data_y = get_cross_data(test_valid_id=test_valid_id)
+    train_data_x, test_data_x, train_data_y, test_data_y = get_cross_data_with_drg(test_valid_id=test_valid_id)
     init_similar_weight, global_feature_weight = global_train()
 
     local_lr_iter = 100
@@ -294,8 +295,9 @@ if __name__ == '__main__':
     version = 14 LR个性化建模 不做特征选择 旧版本数据
     
     version = 30 LR个性化建模 做特征选择 新数据 0
+    version = 31 LR个性化建模 做特征选择 增加了DRG属性 0
     """
-    version = "30"
+    version = "31"
     # ================== save file name ====================
     save_path = f"./result/S04/{hos_id}/"
     create_path_if_not_exists(save_path)
@@ -303,7 +305,7 @@ if __name__ == '__main__':
     program_name = f"S04_LR_id{hos_id}_tra{is_transfer}_v{version}"
     save_result_file = f"./result/S04_id{hos_id}_LR_result_save.csv"
     test_result_file_name = os.path.join(
-        save_path, f"S04_LR_test{test_valid_id}_tra{is_transfer}_boost{local_lr_iter}_select{select}_v{version}.csv")
+        save_path, f"S04_LR_test{test_valid_id}_tra{is_transfer}_iter{local_lr_iter}_select{select}_v{version}.csv")
     # =====================================================
     # 获取数据
     # train_data_x, test_data_x, train_data_y, test_data_y = get_fs_each_hos_data_X_y(hos_id)

@@ -569,6 +569,35 @@ def get_cross_data(test_valid_id):
     return train_data_x, test_data_x, train_data_y, test_data_y
 
 
+def get_cross_data_with_drg(test_valid_id):
+    """
+    获取五折交叉验证数据，同时加入DRG属性
+    :return:
+    """
+    data_path = f'/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/'
+    all_norm_data = pd.read_feather(os.path.join(data_path, f'all_norm_data.feather'))
+    all_data_index = all_norm_data.index.to_list()
+
+    # 添加DRG
+    drg_result_df = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/data_drg_onehot_df.csv", index_col=0)
+    cur_drg_data_df = pd.DataFrame(index=all_data_index)
+    cur_drg_data_df = pd.concat([cur_drg_data_df, drg_result_df], join="inner", axis=1)
+    all_norm_data = pd.concat([all_norm_data, cur_drg_data_df], axis=1)
+
+    # train, test
+    test_data_index = pd.read_feather(os.path.join(data_path, f'test_valid_{test_valid_id}.feather')).index.to_list()
+    test_data = all_norm_data.loc[test_data_index, :]
+    train_data_index = list(set(all_data_index).difference(set(test_data_index)))
+    train_data = all_norm_data.loc[train_data_index]
+
+    train_data_y = train_data['aki_label']
+    train_data_x = train_data.drop(['aki_label'], axis=1)
+    test_data_y = test_data['aki_label']
+    test_data_x = test_data.drop(['aki_label'], axis=1)
+
+    return train_data_x, test_data_x, train_data_y, test_data_y
+
+
 def get_index_diff():
     res_new = get_hos_data_X_y(73)[1]
     res_old = get_hos_data_X_y_old(73)[1]
@@ -601,7 +630,7 @@ if __name__ == '__main__':
     # # test1, test0 = get_target_test_id(73)
     # all_data_x2, t_data_x2, all_data_y2, t_data_y2 = get_train_test_data_X_y()
     # get_match_all_data_except_test(73)
-    data = get_each_hos_data_X_y(0)
+    data = get_cross_data_with_drg(1)
     # version = 1
     # res_old = get_hos_data_X_y(73)
     print("done!")

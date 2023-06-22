@@ -15,6 +15,7 @@ __author__ = 'cqh'
 import os
 import pandas as pd
 import feather
+import numpy as np
 
 from api_utils import get_all_data, get_all_norm_data, get_cross_data
 from sklearn.model_selection import KFold
@@ -156,6 +157,16 @@ def split_five_data():
     return all_norm_data
 
 
+def process_eicu_age_range(age_data):
+    """
+    处理年龄到一定范围内 5个
+    :param age_data:
+    :return:
+    """
+    bins = [18, 26, 36, 46, 56, 65, np.inf]
+    labels = [1, 2, 3, 4, 5, 6]
+    return pd.cut(age_data, bins=bins, labels=labels)
+
 def process_eicu_subgroup_data(test_df):
     """
     提取黑人和白人的记录
@@ -168,6 +179,9 @@ def process_eicu_subgroup_data(test_df):
     black_white_true = (test_df[race_list[0]] == 1) | (test_df[race_list[1]] == 1)
     test_data = test_df[black_white_true]
     cur_cols = test_data.columns
+
+    age_df = test_data.loc[:, "age"]
+    test_data.loc[:, "age"] = process_eicu_age_range(age_df)
 
     for col in cur_cols:
         if col.startswith("med") or col.startswith("px"):
@@ -188,27 +202,16 @@ def get_all_test_data(test_range_ids=None):
         test_range_ids = [1, 2, 3, 4, 5]
 
     data_path = f'/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/'
-    version = 30
-
-    all_data_df = get_all_data()
-    # 增加病人ID索引
-    all_data_df.index = all_data_df["index"].tolist()
-    all_data_df.drop(['index', 'hospitalid'], axis=1, inplace=True)
-
-    # 增加drg属性
-    drg_result_df = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/data_drg_onehot_df.csv", index_col=0)
-    drg_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/drg_all_dict.csv", squeeze=True, index_col=0).to_list()
-
-    cur_drg_data_df = pd.DataFrame(index=all_data_df.index)
-    cur_drg_data_df = pd.concat([cur_drg_data_df, drg_result_df], join="inner", axis=1)
-
-    all_data_df = pd.concat([cur_drg_data_df, all_data_df], axis=1)
+    drg_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/drg_all_dict.csv", squeeze=True,
+                           index_col=0).to_list()
+    all_data_df = get_all_data_with_drg()
 
     cur_data_df = pd.DataFrame()
     select_cols = pd.read_csv(os.path.join(data_path, "subgroup_select_feature.csv"), index_col=0).squeeze().to_list()
+    extra_cols = ["age"]
     race_cols = ["race_African American", "race_Caucasian"]
     aki_cols = ['aki_label']
-    all_cols = drg_cols + race_cols + select_cols + aki_cols
+    all_cols = drg_cols + race_cols + extra_cols + select_cols + aki_cols
 
     # 风险概率(GM, PMTL)
     score_result = pd.read_csv(
@@ -216,6 +219,7 @@ def get_all_test_data(test_range_ids=None):
         index_col=0
     )
 
+    # 按照索引得出对应的数据集
     for idx in test_range_ids:
         test_index = pd.read_feather(os.path.join(data_path, f'test_valid_{idx}.feather')).index.to_list()
         test_df = all_data_df.loc[test_index, all_cols]
@@ -234,6 +238,67 @@ def get_all_test_data(test_range_ids=None):
     cur_data_df.reset_index(drop=True, inplace=True)
     print("load success!", cur_data_df.shape, test_range_ids)
     return cur_data_df
+
+
+def get_all_test_data_with_drg(test_range_ids=None):
+    """
+    :param test_range_ids: 交叉验证集的序号集合
+    :return:
+    """
+    if test_range_ids is None:
+        test_range_ids = [1, 2, 3, 4, 5]
+
+    data_path = f'/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/'
+    drg_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/drg_all_dict.csv", squeeze=True,
+                           index_col=0).to_list()
+    all_data_df = get_all_data_with_drg()
+
+    cur_data_df = pd.DataFrame()
+    select_cols = pd.read_csv(os.path.join(data_path, "subgroup_select_feature.csv"), index_col=0).squeeze().to_list()
+    extra_cols = ["age"]
+    race_cols = ["race_African American", "race_Caucasian"]
+    aki_cols = ['aki_label']
+    all_cols = drg_cols + race_cols + extra_cols + select_cols + aki_cols
+
+    # 风险概率(GM, PMTL)
+    score_result = pd.read_csv(
+        f"/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S02_test_result_GM_PMTL_predict_prob_with_drg.csv",
+        index_col=0
+    )
+
+    # 按照索引得出对应的数据集
+    for idx in test_range_ids:
+        test_index = pd.read_feather(os.path.join(data_path, f'test_valid_{idx}.feather')).index.to_list()
+        test_df = all_data_df.loc[test_index, all_cols]
+
+        test_df["score_y_global"] = score_result.loc[test_index, "global_predict_proba"]
+        test_df["score_y_person"] = score_result.loc[test_index, "personal_predict_proba"]
+
+        # person_result = pd.read_csv(
+        #     f"/home/chenqinhai/code_eicu/my_lab/result/S04/0/S04_LR_test{idx}_tra1_boost100_select10_v{version}.csv", index_col=0)
+        # y_score = person_result['prob']
+        # test_df["score_y"] = y_score
+
+        subgroup_data = process_eicu_subgroup_data(test_df)
+        cur_data_df = pd.concat([cur_data_df, subgroup_data], axis=0)
+
+    cur_data_df.reset_index(drop=True, inplace=True)
+    print("load success!", cur_data_df.shape, test_range_ids)
+    return cur_data_df
+
+def get_all_data_with_drg():
+    all_data_df = get_all_data()
+    # 增加病人ID索引
+    all_data_df.index = all_data_df["index"].tolist()
+    all_data_df.drop(['index', 'hospitalid'], axis=1, inplace=True)
+    # 增加drg属性
+    drg_result_df = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/data_drg_onehot_df.csv",
+                                index_col=0)
+
+    cur_drg_data_df = pd.DataFrame(index=all_data_df.index)
+    cur_drg_data_df = pd.concat([cur_drg_data_df, drg_result_df], join="inner", axis=1)
+    all_data_df = pd.concat([cur_drg_data_df, all_data_df], axis=1)
+    return all_data_df
 
 
 def save_fairness_data():
@@ -261,6 +326,31 @@ def save_fairness_data():
     return fairness_data
 
 
+def save_fairness_data_with_drg():
+    """
+    获得全局、个性化的预测概率(包含drg的个性化建模)
+    结合 黑人和白人
+    再加入 DRG
+    :return:
+    """
+    # 获得所有记录
+    all_test_data = get_all_test_data_with_drg([1,2,3,4,5])
+
+    race_cols = ["race_African American", "race_Caucasian"]
+    drg_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/drg_all_dict.csv", squeeze=True, index_col=0).to_list()
+    aki_cols = ["aki_label", "score_y_global", "score_y_person"]
+
+    all_cols = race_cols + drg_cols + aki_cols
+    fairness_data = all_test_data[all_cols]
+
+    fairness_data.to_csv(
+        "/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S03_fairness_analysis_all_test_data_with_drg.csv"
+    )
+
+    print("save fairness data success!", fairness_data.shape)
+    return fairness_data
+
+
 def get_fairness_data():
     fairness_data = pd.read_csv(
         "/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S03_fairness_analysis_all_test_data.csv",
@@ -268,6 +358,13 @@ def get_fairness_data():
     )
     return fairness_data
 
+
+def get_fairness_data_with_drg():
+    fairness_data = pd.read_csv(
+        "/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S03_fairness_analysis_all_test_data_with_drg.csv",
+        index_col=0
+    )
+    return fairness_data
 
 def process_drg_columns():
     """
@@ -321,6 +418,6 @@ if __name__ == '__main__':
     version = 30
     data_path = f'/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/'
     # data = process_drg_columns()  # 处理DRG属性
-    # all_test_data = get_all_test_data([1])
-    save_fairness_data()
-    fair_data = get_fairness_data()
+    all_test_data = get_all_test_data_with_drg()
+    # save_fairness_data_with_drg()
+    fair_data = get_fairness_data_with_drg()

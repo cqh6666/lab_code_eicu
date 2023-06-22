@@ -12,7 +12,7 @@
 """
 __author__ = 'cqh'
 import pandas as pd
-from api.get_eicu_dataset import get_subgroup_data
+from get_eicu_dataset import get_subgroup_data
 
 # eicu
 my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()

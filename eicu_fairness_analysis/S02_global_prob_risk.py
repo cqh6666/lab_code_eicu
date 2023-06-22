@@ -16,17 +16,17 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-from api.api_utils import get_cross_data
+from api_utils import get_cross_data
 
 valid_id_list = [1,2,3,4,5]
 # 个性化建模的版本
-version = 30
+version = 31
 
 result_df = pd.DataFrame()
 
 for cross_id in valid_id_list:
     person_result = pd.read_csv(
-        f"/home/chenqinhai/code_eicu/my_lab/result/S04/0/S04_LR_test{cross_id}_tra1_boost100_select10_v{version}.csv",
+        f"/home/chenqinhai/code_eicu/my_lab/result/S04/0/S04_LR_test{cross_id}_tra1_iter100_select10_v{version}.csv",
         index_col=0)
 
     train_data_x, test_data_x, train_data_y, test_data_y = get_cross_data(cross_id)
@@ -47,4 +47,4 @@ for cross_id in valid_id_list:
     print("get GM, PMTL prob, and save success!")
     result_df = pd.concat([result_df, cur_result_df], axis=0)
 
-result_df.to_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S02_test_result_GM_PMTL_predict_prob.csv")
+result_df.to_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S02_test_result_GM_PMTL_predict_prob_with_drg.csv")

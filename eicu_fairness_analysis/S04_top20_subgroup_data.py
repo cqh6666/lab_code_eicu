@@ -12,9 +12,9 @@
 """
 __author__ = 'cqh'
 import pandas as pd
-import numpy as np
 
-from api.get_eicu_dataset import get_fairness_data
+from get_eicu_dataset import get_fairness_data_with_drg
+
 aki_label = "aki_label"
 global_score = "score_y_global"
 person_score = "score_y_person"
@@ -27,7 +27,7 @@ def save_top20_drg_cols():
     选择高风险top20患者，根据AKI发生率来选择，并最终保存top20的drg列表
     :return:
     """
-    all_data_records = get_fairness_data()
+    all_data_records = get_fairness_data_with_drg()
     drg_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/drg_all_dict.csv", squeeze=True, index_col=0).to_list()
 
     # 保存各亚组患者的AKI发生率，并最终进行降序排序
@@ -54,7 +54,7 @@ def get_top20_drg_cols():
 
 
 def save_top20_drg_data():
-    all_data_records = get_fairness_data()
+    all_data_records = get_fairness_data_with_drg()
     data_top20_subgroup = pd.DataFrame()
 
     drg_list = get_top20_drg_cols()
@@ -70,6 +70,39 @@ def save_top20_drg_data():
 def get_top20_drg_data():
     return pd.read_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S04_top20_subgroup_data.csv", index_col=0)
 
+
+def get_top20_aki_nums():
+    """
+    获取top20的AKI患者数量
+    :return:
+    """
+    cur_df = get_top20_drg_data()
+    print("aki_nums:", cur_df[aki_label].sum())
+    print("all_nums", cur_df.shape[0])
+
+
+def analysis_top20_subgroup_data():
+    """
+    获取top20的数据
+    :return:
+    """
+    cur_df = get_top20_drg_data()
+    drg_list = get_top20_drg_cols()
+    result_df = pd.DataFrame()
+    for drg in drg_list:
+        temp_df = cur_df[cur_df.loc[:, drg] == 1]
+        result_df.loc[drg, "nums"] = temp_df.shape[0]
+        result_df.loc[drg, "aki_nums"] = temp_df[aki_label].sum()
+        result_df.loc[drg, "aki_rate"] = result_df.loc[drg, "aki_nums"] / result_df.loc[drg, "nums"]
+        result_df.loc[drg, "race_black_nums"] = temp_df[temp_df.loc[:, race_black] == 1].shape[0]
+        result_df.loc[drg, "race_white_nums"] = temp_df[temp_df.loc[:, race_white] == 1].shape[0]
+
+    result_df.to_csv("/home/chenqinhai/code_eicu/my_lab/eicu_fairness_analysis/S04_top20_subgroup_data_statistic.csv")
+
+
 if __name__ == '__main__':
+    # save_top20_drg_cols()
+    # drg_li = get_top20_drg_cols()
     save_top20_drg_data()
     data = get_top20_drg_data()
+    # analysis_top20_subgroup_data()
