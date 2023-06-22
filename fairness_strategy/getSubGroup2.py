@@ -2,7 +2,7 @@
 """
 -------------------------------------------------
    File Name:     getSubGroup
-   Description:   ...
+   Description:   新版
    Author:        cqh
    date:          2022/12/23 20:39
 -------------------------------------------------
@@ -39,13 +39,6 @@ class Constant:
     label_column = "Label"
     black_race_column = "Demo2_2"
     white_race_column = "Demo2_1"
-
-    # eicu
-    # label_column = "aki_label"
-    # black_race_column = "race_African American"
-    # white_race_column = "race_Caucasian"
-    # black_race_column = "race_Caucasian"
-    # white_race_column = "race_African American"
 
     black_race = 1
     white_race = 1
@@ -1093,23 +1086,21 @@ if __name__ == '__main__':
     version = 15  AKI_Loss优化有bug max_depth=8（增加性别属性） 同时增加top20的测试
     """
     version = 15
+
+    # drg列表
     drg_cols = "/home/liukang/Doc/disease_top_20.csv"
     drg_list = pd.read_csv(drg_cols).squeeze().to_list()
     my_cols = pd.read_csv("ku_data_select_cols.csv", index_col=0).squeeze().to_list()
+    # 数据集 - feather格式
     data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/{}_data.feather"
-
-    # eicu
-    # my_cols = pd.read_csv("/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/subgroup_select_feature.csv", index_col=0).squeeze().to_list()
-    # data_file_name = "/home/chenqinhai/code_eicu/my_lab/fairness_strategy/data/eicu_data/test_valid_{}.feather"
+    # 决策树 - pickle格式
     pickle_file_name = f"/home/chenqinhai/code_eicu/my_lab/fairness_strategy/result/pickle/sbdt_pickle_rate{risk_rate}_type{split_type}_cross{cross_index}_v{version}.pkl"
+    # 3种代价指标
     loss_dict = {
         1: RiskAkiDiffLoss(name="额外牺牲"),
         2: RiskProbDiffLoss(name="概率变化"),
         3: RiskManDiffLoss(name=f"换手率")
     }
-
-    # 线程池
-    # executor = ThreadPoolExecutor(max_workers=pool_nums)
 
     myLoss = loss_dict[split_type]
 
@@ -1121,4 +1112,4 @@ if __name__ == '__main__':
     #     logger.info(f"{pickle_file_name} 读取pickle文件成功!")
     # print(obj)
 
-    subgroup_top20_test_valid()
+    # subgroup_top20_test_valid()
